@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>건물 위치 현장조사</title>
+<style>
+  :root {
+    --bg:#f6f4ef; --card:#ffffff; --text:#25272b; --t2:#5b6068; --t3:#8a8f98;
+    --line:#dcd8cf; --accent:#2f6fb5; --accent-soft:rgba(47,111,181,.12); --on-accent:#fff;
+    --ok:#2e8b57; --ok-soft:rgba(46,139,87,.12); --warn:#b9770e; --warn-soft:rgba(185,119,14,.13);
+    --danger:#c0392b; --danger-soft:rgba(192,57,43,.11); --field:#fbfaf7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#1d1f23; --card:#272a2f; --text:#e7e8ea; --t2:#aeb2b9; --t3:#7f858d;
+      --line:#3a3e45; --accent:#6aa6e6; --accent-soft:rgba(106,166,230,.16); --on-accent:#0f1a28;
+      --ok:#5fc08a; --ok-soft:rgba(95,192,138,.15); --warn:#e0a84a; --warn-soft:rgba(224,168,74,.16);
+      --danger:#ef8a7e; --danger-soft:rgba(239,138,126,.15); --field:#202327;
+    }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif; line-height:1.5;
+         padding:16px 16px calc(24px + env(safe-area-inset-bottom)); max-width:560px; margin:0 auto; }
+  h1 { font-size:20px; margin:4px 0 2px; }
+  .sub { color:var(--t2); font-size:13px; margin-bottom:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; }
+  .step { display:flex; align-items:center; gap:8px; font-weight:700; font-size:14px; margin-bottom:10px; }
+  .step b { display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--on-accent);
+            align-items:center; justify-content:center; font-size:12px; flex:none; }
+  label { display:block; font-size:12px; color:var(--t2); margin:0 0 4px; }
+  input[type=text], select { width:100%; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:10px;
+                             background:var(--field); color:var(--text); font-family:inherit; }
+  select option { background:var(--card); color:var(--text); }
+  input:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .row { margin-bottom:10px; } .row:last-child { margin-bottom:0; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .chip { border:1px solid var(--line); background:transparent; color:var(--t2); border-radius:999px; padding:6px 11px; font-size:13px; font-family:inherit; cursor:pointer; }
+  .chip.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:700; }
+  .btn { width:100%; border:0; border-radius:12px; padding:15px; font-size:17px; font-weight:800; font-family:inherit; cursor:pointer;
+         background:var(--accent); color:var(--on-accent); }
+  .btn:disabled { opacity:.45; cursor:default; }
+  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); font-size:15px; padding:11px; font-weight:700; }
+  .btn.ok { background:var(--ok); color:#fff; }
+  .meter { height:8px; background:var(--line); border-radius:6px; overflow:hidden; margin:10px 0 6px; }
+  .meter > i { display:block; height:100%; width:0; background:var(--accent); transition:width .25s linear; }
+  .live { font-size:13px; color:var(--t2); min-height:20px; }
+  .result { margin-top:10px; border-radius:10px; padding:11px 12px; font-size:14px; }
+  .result.good { background:var(--ok-soft); color:var(--ok); }
+  .result.warn { background:var(--warn-soft); color:var(--warn); }
+  .result.bad  { background:var(--danger-soft); color:var(--danger); }
+  .coord { font-variant-numeric:tabular-nums; font-weight:800; font-size:16px; color:var(--text); display:block; margin:2px 0; }
+  .tip { font-size:12.5px; color:var(--t2); }
+  details.gap { margin-top:12px; border-top:1px dashed var(--line); padding-top:10px; }
+  details.gap summary { font-weight:700; font-size:14px; cursor:pointer; }
+  .gapsum { font-size:12.5px; color:var(--t2); margin:8px 0 4px; }
+  .gaph { font-size:12.5px; font-weight:700; margin:12px 0 0; }
+  .gapchip { border:1px solid var(--line); background:var(--field); color:var(--text); border-radius:999px; padding:6px 11px; font-size:13px; font-family:inherit; cursor:pointer; }
+  .gapchip.bad { border-color:var(--danger); background:var(--danger-soft); }
+  .gapchip.mid { border-color:var(--warn); background:var(--warn-soft); }
+  .gapchip.on { outline:2px solid var(--accent); }
+  .tip li { margin:3px 0; } .tip ul { margin:6px 0 0; padding-left:18px; }
+  .msg { font-size:14px; border-radius:10px; padding:11px 12px; margin-bottom:12px; }
+  .msg.err { background:var(--danger-soft); color:var(--danger); }
+  .msg.ok { background:var(--ok-soft); color:var(--ok); }
+  .who { background:var(--accent-soft); color:var(--accent); border-radius:10px; padding:9px 12px; font-weight:700; font-size:14px; margin-bottom:10px; }
+  .progress { font-size:12px; color:var(--t3); text-align:right; margin-top:4px; }
+  a { color:var(--accent); }
+  .hide { display:none !important; }
+  .seg { display:flex; gap:6px; }
+  .seg button { flex:1; border:1px solid var(--line); background:transparent; color:var(--t2); border-radius:10px; padding:10px 4px;
+                font-size:15px; font-family:inherit; cursor:pointer; }
+  .seg button.on { background:var(--accent-soft); border-color:var(--accent); color:var(--accent); font-weight:800; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tabs button { flex:1; border:1px solid var(--line); background:var(--card); color:var(--t2); border-radius:12px; padding:11px 4px;
+                 font-size:15px; font-family:inherit; font-weight:700; cursor:pointer; }
+  .tabs button.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+  .big { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
+  .btn.stop { background:var(--danger); color:#fff; }
+</style>
+</head>
+<body>
+
+<h1>📍 건물 위치 현장조사</h1>
+<div class="sub">건물 출입구 앞에서 측정해 주세요. 여러 명이 측정한 값을 모아 지도 안내에 자동으로 반영돼요.</div>
+
+<div id="topMsg"></div>
+
+<div class="tabs" id="tabs">
+  <button type="button" class="on" data-m="loc">📍 건물 위치</button>
+  <button type="button" data-m="path">🚶 걸은 길 기록</button>
+</div>
+
+<div id="modeLoc">
+<div class="card" id="cardInfo">
+  <div class="step"><b>1</b>건물 선택</div>
+  <div class="who hide" id="who"></div>
+  <div class="row">
+    <label for="bld">측정할 건물 · 학교 출입구</label>
+    <select id="bld"><option value="">불러오는 중...</option></select>
+    <div class="progress" id="bldProgress"></div>
+  </div>
+  <div class="row hide" id="rowNewBld">
+    <label for="newBldName">새 지점 이름 <span style="color:var(--danger)">*</span></label>
+    <input type="text" id="newBldName" maxlength="30" placeholder="예: 해람아트스페이스">
+    <div class="progress" id="newBldHint" style="text-align:left">건물이 아니지만 위치를 알려야 하는 곳(조형물, 쉼터, 안내 지점 등)을 새로 추가해요. 저장하면 목록에 바로 생겨요.</div>
+  </div>
+  <div class="row" id="rowEnt">
+    <label>측정할 출입구 <span style="color:var(--danger)">*</span></label>
+    <div class="seg" id="seg">
+      <button type="button" class="on" data-v="정문">정문</button>
+      <button type="button" data-v="후문">후문</button>
+      <button type="button" data-v="측면">측면</button>
+      <button type="button" data-v="__custom">직접입력</button>
+    </div>
+    <input type="text" id="customEnt" class="hide" maxlength="20" placeholder="예: 동쪽 출입구, 제2출입구" style="margin-top:6px;">
+    <div class="progress" id="typeProgress" style="text-align:left"></div>
+  </div>
+  <div class="row">
+    <label for="note">지점 메모 <span style="color:var(--t3)">(선택)</span></label>
+    <input type="text" id="note" maxlength="60" placeholder="예: 도서관 쪽 계단 앞">
+  </div>
+</div>
+
+<div class="card" id="cardMeasure">
+  <div class="step"><b>2</b>위치 측정</div>
+  <button class="btn" id="btnMeasure" disabled>현재 위치 측정</button>
+  <div class="meter hide" id="meter"><i id="meterBar"></i></div>
+  <div class="live" id="live"></div>
+  <div id="result"></div>
+</div>
+
+<div class="card" id="cardSave">
+  <div class="step"><b>3</b>저장</div>
+  <button class="btn ok" id="btnSave" disabled>이 위치 저장</button>
+</div>
+
+<div class="card">
+  <div class="step" style="margin-bottom:4px;">측정이 잘 되는 요령</div>
+  <ul class="tip">
+    <li>건물 <b>밖</b>, 하늘이 트인 <b>출입구 바로 앞</b>에서 측정하세요. 건물 안에서는 오차가 크게 나요.</li>
+    <li>측정 중(약 20초)에는 폰을 <b>들고 가만히</b> 서 있어 주세요.</li>
+    <li>폰의 <b>위치(GPS) 기능을 켜 두세요.</b> 위치 권한을 물으면 허용해 주세요.</li>
+    <li>오차가 크다고 나오면 자리를 옮겨 다시 측정해 보세요.</li>
+    <li>지도 안내에는 <b>정문</b> 위치가 쓰여요. 후문·측면은 따로 기록만 해 둬요.</li>
+  </ul>
+</div>
+</div>
+
+<div id="modePath" class="hide">
+  <div class="card hide" id="cardPending">
+    <div class="step" style="margin-bottom:6px;">📦 아직 서버에 저장되지 않은 길</div>
+    <div class="tip" id="pendingInfo"></div>
+    <button class="btn ghost" id="btnPending" style="margin-top:8px;">다시 보내기</button>
+  </div>
+  <div class="card">
+    <div class="step"><b>1</b>출발·도착 (알면 선택)</div>
+    <div class="row">
+      <label for="pFrom">출발 건물</label>
+      <select id="pFrom"><option value="">선택 안 함</option></select>
+    </div>
+    <div class="row">
+      <label for="pTo">도착 건물</label>
+      <select id="pTo"><option value="">선택 안 함</option></select>
+    </div>
+    <details class="gap" id="gapBox">
+      <summary>🗺 아직 안 걸은 길 보기</summary>
+      <div class="gapsum" id="gapSum">불러오는 중…</div>
+      <div class="tip" id="gapHint">위에서 <b>출발 건물</b>을 고르면, 거기서 아직 안 걸은 곳이 나와요. 누르면 도착 건물이 채워져요.</div>
+      <div id="gapList"></div>
+    </details>
+  </div>
+  <div class="card">
+    <div class="step"><b>2</b>걸으며 기록</div>
+    <button class="btn" id="btnPath" disabled>걷기 시작</button>
+    <div class="live" id="pLive" style="margin-top:10px;"></div>
+    <div id="pResult"></div>
+  </div>
+  <div class="card hide" id="cardPathSave">
+    <div class="step"><b>3</b>저장</div>
+    <div class="row">
+      <label for="wUp">애플워치 상승/하강(m) <span style="color:var(--t3)">(선택, 입력하면 이 값으로 저장돼요)</span></label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" id="wUp" min="0" step="1" placeholder="상승 m" style="flex:1;">
+        <input type="number" id="wDown" min="0" step="1" placeholder="하강 m" style="flex:1;">
+      </div>
+    </div>
+    <button class="btn ok" id="btnPathSave">이 길 저장</button>
+    <button class="btn ghost" id="btnPathDiscard" style="margin-top:8px;">버리고 다시 기록</button>
+  </div>
+  <div class="card">
+    <div class="step" style="margin-bottom:4px;">길 기록 요령 <span class="progress" id="pathCount" style="margin:0 0 0 auto;"></span></div>
+    <ul class="tip">
+      <li>한 건물 출입구에서 출발해 <b>평소 걷는 길 그대로</b> 다른 건물 출입구까지 걸어가세요. 지름길·건물 사이 통로·계단도 꼭 걸어 주세요.</li>
+      <li>기록하는 동안 <b>화면을 켜 둔 채</b> 폰을 손에 들고 걸어 주세요. 화면이 꺼지면 기록이 끊겨요.</li>
+      <li>같은 길을 여러 번 걸어도 괜찮아요. 겹치는 길은 자동으로 합쳐져요.</li>
+      <li>길이 갈라지는 곳은 갈래마다 따로 걸어 기록해 주세요.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="tip" style="text-align:center;margin-top:22px;opacity:.6;" id="buildInfo"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdFualGxneSbdscvcDxOnIXqqYq2zoK6uZe_c10zog07Cew6F8HUzjNeN7cCnuZ9C0/exec';
+  const TOKEN = new URLSearchParams(location.search).get('t') || '';
+  const BUILD = 'v2 · 2026-10-21 11:27 KST';
+  const buildInfoEl = document.getElementById('buildInfo');
+  if (buildInfoEl) buildInfoEl.textContent = BUILD;
+
+  const MAX_MS = 25000;     // 측정 최대 시간
+  const TARGET_GOOD = 8;    // 이만큼 좋은 값이 모이면 조기 종료
+  const KEEP_BEST = 6;      // 좋은 값 중 가장 정확한 N개만 평균
+  let maxAcc = 20;          // 서버가 알려 주는 허용 오차(m)
+  let minSamples = 3;
+
+  const $ = id => document.getElementById(id);
+  const el = {
+    top: $('topMsg'), who: $('who'), bld: $('bld'), note: $('note'), seg: $('seg'), typeProg: $('typeProgress'),
+    btnMeasure: $('btnMeasure'), btnSave: $('btnSave'), meter: $('meter'), bar: $('meterBar'),
+    live: $('live'), result: $('result'), prog: $('bldProgress')
+  };
+
+  let watchId = null, timer = null, startTs = 0;
+  let samples = [];
+  let measured = null;        // { lat, lng, acc, n, spread }
+  let surveyor = '';          // 링크에 지정된 조사자 이름(서버가 알려 줌)
+  let busy = false;
+  let entType = '정문';       // 출입구 종류 (필수, 기본 정문)
+  const TYPES = ['정문', '후문', '측면'];
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function lsGet(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function topMsg(type, text) { el.top.innerHTML = text ? '<div class="msg ' + type + '">' + esc(text) + '</div>' : ''; }
+
+  function distM(la1, ln1, la2, ln2) {
+    const R = 6371000, r = Math.PI / 180;
+    const dLa = (la2 - la1) * r, dLn = (ln2 - ln1) * r;
+    const a = Math.sin(dLa / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dLn / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(a));
+  }
+
+  function api(params) {
+    const q = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+    return fetch(GAS_URL + '?page=api&action=survey&t=' + encodeURIComponent(TOKEN) + '&' + q + '&_=' + Date.now())
+      .then(r => r.json());
+  }
+
+  // ---------- 건물 목록 ----------
+  let buildings = [];
+  let pathCount = 0;
+  let serverHasPath = true;   // 서버(GAS)가 길 기록을 지원하는 새 버전인지
+  function isGate(code) { const b = buildings.find(x => x.code === code); return !!(b && b.gate); }
+  // 출입구가 여러 곳인 건물은 각 출입구를 '조사대상' 시트에 별도 코드로 등록해 주세요 (예: P2, P3...).
+  // 코드마다 '정문' 칸 1곳만 안내(지도)용 좌표로 쓰이므로, 출입구별로 따로 안내하려면 코드도 따로 둬야 합니다.
+  function isTrail(code) { const b = buildings.find(x => x.code === code); return !!(b && b.trail); }
+  function isNewPoint(code) { return code === '__new__'; }
+  function curEntType() {
+    const c = el.bld.value;
+    return (isGate(c) || isNewPoint(c)) ? '정문' : entType;   // 게이트·등산로·새 지점 등 한 지점짜리 코드는 '정문' 칸에 모읍니다
+  }
+  function applyEntUi() {
+    const code = el.bld.value, gate = isGate(code) || isNewPoint(code);
+    const rowEnt = document.getElementById('rowEnt'); if (!rowEnt) return;
+    rowEnt.classList.toggle('hide', gate);
+    const rowNew = document.getElementById('rowNewBld'); if (rowNew) rowNew.classList.toggle('hide', !isNewPoint(code));
+  }
+  function optionsHtml(list) {
+    return list.map(b => {
+      const done = b.count >= minSamples;
+      return '<option value="' + esc(b.code) + '">' + (done ? '✓ ' : '') + esc(b.code) + (b.name ? ' ' + esc(b.name) : '') + '</option>';
+    }).join('');
+  }
+  function groupedOptionsHtml() {
+    const gates = buildings.filter(b => b.gate && !b.trail), trails = buildings.filter(b => b.trail), blds = buildings.filter(b => !b.gate);
+    const newOpt = '<optgroup label="➕ 기타"><option value="__new__">➕ 새 지점 추가 (건물 아닌 곳)</option></optgroup>';
+    if (!gates.length && !trails.length) return optionsHtml(blds) + newOpt;
+    return '<optgroup label="🏢 건물">' + optionsHtml(blds) + '</optgroup>' +
+           (gates.length ? '<optgroup label="🚪 학교 출입구">' + optionsHtml(gates) + '</optgroup>' : '') +
+           (trails.length ? '<optgroup label="🥾 등산로">' + optionsHtml(trails) + '</optgroup>' : '') +
+           newOpt;
+  }
+  function renderBuildings(keepValue) {
+    const cur = keepValue !== undefined ? keepValue : el.bld.value;
+    el.bld.innerHTML = '<option value="">건물 또는 출입구를 선택하세요</option>' + groupedOptionsHtml();
+    el.bld.value = cur;
+    const gates = buildings.filter(b => b.gate && !b.trail), trails = buildings.filter(b => b.trail), blds = buildings.filter(b => !b.gate);
+    const dn = list => list.filter(b => b.count >= minSamples).length;
+    el.prog.textContent = buildings.length
+      ? ('✓ = 정문 ' + minSamples + '건 이상 모임 · 건물 ' + blds.length + '동 중 ' + dn(blds) + '동 완료' +
+         (gates.length ? ' · 출입구 ' + gates.length + '곳 중 ' + dn(gates) + '곳 완료' : '') +
+         (trails.length ? ' · 등산로 ' + trails.length + '곳 중 ' + dn(trails) + '곳 완료' : '')) : '';
+    updateTypeProgress();
+    fillPathSelects();
+  }
+  function updateTypeProgress() {
+    const b = buildings.find(x => x.code === el.bld.value);
+    const gate = !!(b && b.gate);
+    applyEntUi();
+    if (!b || gate) { el.typeProg.textContent = ''; return; }
+    const t = b.types || {};
+    const keys = Object.keys(t);
+    el.typeProg.textContent = keys.length ? keys.map(k => k + ' ' + t[k] + '건').join(' · ') : '';
+  }
+
+  function loadInfo() {
+    if (!TOKEN) { topMsg('err', '조사용 링크로 접속해 주세요. 관리자에게 링크를 요청하세요.'); el.bld.innerHTML = '<option value="">링크가 필요합니다</option>'; return; }
+    api({ op: 'info' }).then(res => {
+      if (!res || !res.success) { topMsg('err', (res && res.message) || '불러오지 못했습니다.'); el.bld.innerHTML = '<option value="">불러오기 실패</option>'; return; }
+      buildings = (res.buildings || []).map(b => { if (!b.name && b.gateName) b.name = b.gateName; return b; });   // 조사대상 시트에 이름이 있으면 그걸 우선 쓰고, 없을 때만 설명으로 대체
+      if (res.maxAcc) maxAcc = res.maxAcc;
+      if (res.minSamples) minSamples = res.minSamples;
+      surveyor = res.surveyor || '';
+      serverHasPath = res.pathCount !== undefined;
+      pathCount = res.pathCount || 0;
+      $('pathCount').textContent = serverHasPath ? '기록된 길 ' + pathCount + '개' : '서버 업데이트 필요';
+      if (surveyor) { el.who.textContent = '👤 ' + surveyor + '님으로 기록됩니다'; el.who.classList.remove('hide'); }
+      renderBuildings(lsGet('survey_last_bld'));
+      refreshButtons();
+      loadGapPairs();
+    }).catch(() => { topMsg('err', '서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.'); });
+  }
+
+  // ---------- 입력 상태 ----------
+  function refreshButtons() {
+    const code = el.bld.value;
+    const newOk = !isNewPoint(code) || !!document.getElementById('newBldName').value.trim();
+    const ok = !!surveyor && !!code && !!TOKEN && newOk;
+    el.btnMeasure.disabled = !ok || busy;
+    el.btnSave.disabled = !(ok && measured && !busy);
+    const pb = document.getElementById('btnPath'); if (pb) pb.disabled = !(surveyor && TOKEN);
+  }
+  el.bld.addEventListener('change', function () {
+    if (!isNewPoint(el.bld.value)) lsSet('survey_last_bld', el.bld.value);
+    if (!isNewPoint(el.bld.value)) document.getElementById('newBldName').value = '';
+    resetMeasure(); updateTypeProgress(); refreshButtons();
+  });
+  document.getElementById('newBldName').addEventListener('input', refreshButtons);
+  el.seg.addEventListener('click', function (e) {
+    const b = e.target.closest('button'); if (!b) return;
+    const custom = document.getElementById('customEnt');
+    if (b.dataset.v === '__custom') {
+      custom.classList.remove('hide');
+      custom.focus();
+      entType = custom.value.trim() || '';
+    } else {
+      custom.classList.add('hide');
+      entType = b.dataset.v;
+    }
+    el.seg.querySelectorAll('button').forEach(c => c.classList.toggle('on', c === b));
+  });
+  document.getElementById('customEnt').addEventListener('input', function () { entType = this.value.trim(); });
+
+  // ---------- 측정 ----------
+  function resetMeasure() {
+    stopWatch();
+    samples = []; measured = null; busy = false;
+    el.meter.classList.add('hide'); el.bar.style.width = '0';
+    el.live.textContent = ''; el.result.innerHTML = '';
+    el.btnMeasure.textContent = '현재 위치 측정';
+  }
+  function stopWatch() {
+    if (watchId !== null) { try { navigator.geolocation.clearWatch(watchId); } catch (e) {} watchId = null; }
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+  function goodSamples() { return samples.filter(s => s.acc <= maxAcc); }
+
+  function startMeasure() {
+    if (!navigator.geolocation) { topMsg('err', '이 기기(브라우저)는 위치 기능을 지원하지 않습니다.'); return; }
+    topMsg('', '');
+    resetMeasure();
+    busy = true; refreshButtons();
+    el.meter.classList.remove('hide');
+    el.btnMeasure.textContent = '측정 중... 폰을 들고 가만히 계세요';
+    startTs = Date.now();
+    watchId = navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+    timer = setInterval(tick, 250);
+  }
+
+  function onPos(pos) {
+    const c = pos.coords;
+    samples.push({ lat: c.latitude, lng: c.longitude, acc: c.accuracy });
+    const g = goodSamples().length;
+    el.live.textContent = '현재 오차 ±' + Math.round(c.accuracy) + 'm · 사용 가능한 측정 ' + g + '회';
+  }
+
+  function onErr(err) {
+    if (!busy) return;
+    if (err && err.code === 1) {
+      finishFail('위치 권한이 꺼져 있어요. 브라우저/폰 설정에서 이 페이지의 위치 권한을 허용한 뒤 다시 눌러 주세요.');
+    } else {
+      // 신호를 잡는 중에 일시적으로 나는 오류(코드 2·3)는 무시하고 계속 기다림. 끝까지 값이 없으면 종료 시 안내
+      el.live.textContent = '위치 신호를 찾는 중... 하늘이 트인 곳인지 확인해 주세요.';
+    }
+  }
+
+  function tick() {
+    const el_ms = Date.now() - startTs;
+    el.bar.style.width = Math.min(100, Math.round(el_ms / MAX_MS * 100)) + '%';
+    if (goodSamples().length >= TARGET_GOOD || el_ms >= MAX_MS) finishMeasure();
+  }
+
+  function finishFail(text) {
+    stopWatch(); busy = false; measured = null;
+    el.meter.classList.add('hide');
+    el.btnMeasure.textContent = '다시 측정';
+    el.result.innerHTML = '<div class="result bad">' + esc(text) + '</div>';
+    refreshButtons();
+  }
+
+  function finishMeasure() {
+    stopWatch();
+    const good = goodSamples();
+    if (good.length < 3) {
+      const best = samples.length ? Math.round(Math.min.apply(null, samples.map(s => s.acc))) : null;
+      finishFail(best === null
+        ? '위치 값을 받지 못했어요. 폰의 위치(GPS)를 켜고 건물 밖에서 다시 시도해 주세요.'
+        : '오차가 너무 커요 (가장 좋은 값 ±' + best + 'm, 기준 ±' + maxAcc + 'm). 하늘이 트인 출입구 앞으로 이동해 다시 측정해 주세요.');
+      return;
+    }
+    good.sort((a, b) => a.acc - b.acc);
+    const use = good.slice(0, KEEP_BEST);
+    let sw = 0, sLa = 0, sLn = 0;
+    use.forEach(s => { const w = 1 / (s.acc * s.acc); sw += w; sLa += s.lat * w; sLn += s.lng * w; });
+    const lat = sLa / sw, lng = sLn / sw;
+    const accs = use.map(s => s.acc).sort((a, b) => a - b);
+    const acc = accs[Math.floor(accs.length / 2)];
+    let spread = 0;
+    use.forEach(s => { spread = Math.max(spread, distM(lat, lng, s.lat, s.lng)); });
+    measured = { lat: lat, lng: lng, acc: acc, n: use.length, spread: spread };
+    busy = false;
+    el.meter.classList.add('hide');
+    el.live.textContent = '';
+    el.btnMeasure.textContent = '다시 측정';
+    const shaky = spread > 12;
+    el.result.innerHTML =
+      '<div class="result ' + (shaky ? 'warn' : 'good') + '">' +
+      '<span class="coord">' + lat.toFixed(6) + ', ' + lng.toFixed(6) + '</span>' +
+      '오차 약 ±' + acc.toFixed(1) + 'm · 측정 ' + use.length + '회 평균' +
+      (shaky ? '<br>값이 많이 흔들렸어요. 가능하면 가만히 서서 다시 측정해 주세요.' : '') +
+      '<br><a href="https://maps.google.com/?q=' + lat.toFixed(6) + ',' + lng.toFixed(6) + '" target="_blank" rel="noopener">지도에서 위치 확인</a>' +
+      '</div>';
+    refreshButtons();
+  }
+
+  el.btnMeasure.addEventListener('click', startMeasure);
+
+  // ---------- 저장 ----------
+  el.btnSave.addEventListener('click', function () {
+    if (!measured || busy) return;
+    busy = true; refreshButtons();
+    el.btnSave.textContent = '저장 중...';
+    const code = el.bld.value;
+    const isNew = isNewPoint(code);
+    const newName = isNew ? document.getElementById('newBldName').value.trim() : '';
+    const params = {
+      op: 'submit',
+      bld: code, note: el.note.value.trim(),
+      etype: curEntType(),
+      lat: measured.lat.toFixed(7), lng: measured.lng.toFixed(7),
+      acc: measured.acc.toFixed(1), n: measured.n
+    };
+    if (isNew) params.newName = newName;
+    api(params).then(res => {
+      busy = false; el.btnSave.textContent = '이 위치 저장';
+      if (res && res.success) {
+        const savedCode = isNew && res.code ? res.code : code;
+        const et = curEntType();
+        if (isNew && res.code) {
+          buildings.push({ code: res.code, name: res.name || newName, count: 1, types: { [et]: 1 }, gate: false, trail: false });
+        } else {
+          const b = buildings.find(x => x.code === savedCode);
+          if (b) {
+            b.types = b.types || {};
+            b.types[et] = res.count !== undefined ? res.count : ((b.types[et] || 0) + 1);
+            if (et === '정문') b.count = b.types[et];
+          }
+        }
+        lsSet('survey_last_bld', savedCode);
+        document.getElementById('newBldName').value = '';
+        renderBuildings(savedCode);
+        measured = null;
+        el.result.innerHTML = '';
+        el.btnMeasure.textContent = '현재 위치 측정';
+        const label = isNew ? ('새 지점(' + (res.name || newName) + ')') : (isGate(code) ? (isTrail(code) ? '등산로 지점' : '출입구') : et);
+        topMsg('ok', label + ' 위치를 저장했어요. 수고하셨습니다! 다른 출입구나 건물로 이동해서 계속 측정해 주세요.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        topMsg('err', (res && res.message) || '저장하지 못했습니다. 다시 시도해 주세요.');
+      }
+      refreshButtons();
+    }).catch(() => {
+      busy = false; el.btnSave.textContent = '이 위치 저장';
+      topMsg('err', '서버에 연결하지 못했습니다. 인터넷 연결을 확인하고 다시 저장해 주세요. (측정값은 그대로 남아 있어요)');
+      refreshButtons();
+    });
+  });
+
+  // ================= 걸은 길 기록 =================
+  const P_MAX_ACC = 20;      // 이 오차보다 나쁜 신호는 버림
+  const P_MIN_STEP = 4;      // 이만큼(또는 오차의 60%) 움직여야 새 점으로 기록
+  const P_SIMPLIFY_M = 3;    // 저장 전 직선에 가깝게 단순화하는 허용치(m)
+  const P_MAX_PTS = 250;
+  let pWatch = null, pPts = [], pBusy = false, pWake = null, pFinal = null;
+
+  // ---- 기록한 길은 먼저 폰에 보관하고, 서버 저장이 확인될 때만 지움 ----
+  const PEND_KEY = 'survey_pending_paths';
+  function pendGet() { try { const a = JSON.parse(lsGet(PEND_KEY) || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+  function pendSet(a) { lsSet(PEND_KEY, JSON.stringify(a)); renderPending(); }
+  function pendRemove(id) { pendSet(pendGet().filter(x => x.id !== id)); }
+  function pendUpsert(item) {
+    const a = pendGet().filter(x => x.id !== item.id); a.push(item); pendSet(a);
+  }
+  function renderPending() {
+    const a = pendGet(), card = $('cardPending');
+    if (!a.length) { card.classList.add('hide'); return; }
+    card.classList.remove('hide');
+    $('pendingInfo').textContent = a.length + '개의 길이 이 폰에 보관되어 있어요 (총 ' + a.reduce((s, x) => s + (x.len || 0), 0) + 'm). 서버에 저장되면 자동으로 지워져요.';
+  }
+  function sendPath(item) {
+    const params = { op: 'pathsubmit', from: item.from || '', to: item.to || '', path: item.enc, len: item.len, pts: item.pts };
+    if (item.wUp !== undefined && item.wUp !== '' && item.wDown !== undefined && item.wDown !== '') {
+      params.wUp = item.wUp; params.wDown = item.wDown;
+    }
+    return api(params)
+      .then(res => {
+        if (res && res.success && res.pathCount !== undefined) return { ok: true, pathCount: res.pathCount };
+        if (res && res.success) return { ok: false, message: '서버가 아직 길 저장을 지원하는 새 버전이 아니에요. 저장되지 않았습니다.' };
+        return { ok: false, message: (res && res.message) || '저장하지 못했습니다.' };
+      }).catch(() => ({ ok: false, message: '서버에 연결하지 못했습니다.' }));
+  }
+
+  function fillPathSelects() {
+    ['pFrom', 'pTo'].forEach(id => {
+      const sel = $(id), cur = sel.value;
+      sel.innerHTML = '<option value="">선택 안 함</option>' + groupedOptionsHtml(); sel.value = cur;
+    });
+    if (typeof renderGap === 'function') renderGap();
+  }
+
+  // ── 아직 안 걸은 길: 기록된 길(출발→도착)을 기준으로 직접/이어서/못 가는 곳을 나눠 보여줌 ──
+  let gapPairs = null;   // [[from,to],...] 또는 null(서버 미지원)
+  function codeOf(v) { return String(v || '').trim().split(/[\s(]/)[0]; }
+  function loadGapPairs() {
+    fetch(GAS_URL + '?page=api&action=surveypairs&_=' + Date.now()).then(r => r.json()).then(res => {
+      gapPairs = (res && res.success) ? (res.pairs || []) : null;
+      if (!gapPairs) $('gapSum').textContent = '서버 업데이트 후에 볼 수 있어요.';
+      renderGap();
+    }).catch(() => { gapPairs = null; $('gapSum').textContent = '서버 업데이트 후에 볼 수 있어요.'; });
+  }
+  function renderGap() {
+    if (!gapPairs || !buildings.length) return;
+    const codes = buildings.map(b => b.code), has = {}; codes.forEach(c => has[c] = true);
+    const parent = {}; codes.forEach(c => parent[c] = c);
+    const find = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+    const direct = {}; const key = (a, b) => a < b ? a + '|' + b : b + '|' + a;
+    gapPairs.forEach(pr => {
+      const a = codeOf(pr[0]), b = codeOf(pr[1]);
+      if (!has[a] || !has[b] || a === b) return;
+      direct[key(a, b)] = true; parent[find(a)] = find(b);
+    });
+    let nd = 0, nc = 0, nu = 0;
+    for (let i = 0; i < codes.length; i++) for (let j = i + 1; j < codes.length; j++) {
+      if (direct[key(codes[i], codes[j])]) nd++; else if (find(codes[i]) === find(codes[j])) nc++; else nu++;
+    }
+    $('gapSum').innerHTML = '전체 ' + (nd + nc + nu) + '쌍 중 · <b style="color:var(--ok)">직접 기록 ' + nd + '</b> · <b style="color:var(--warn)">이어서 갈 수 있음 ' + nc + '</b> · <b style="color:var(--danger)">아직 못 가는 곳 ' + nu + '</b>';
+    const from = $('pFrom').value, box = $('gapList'); box.innerHTML = '';
+    if (!from) { $('gapHint').classList.remove('hide'); return; }
+    $('gapHint').classList.add('hide');
+    const nameOf = c => { const b = buildings.find(x => x.code === c); return c + (b && b.name ? ' ' + b.name : ''); };
+    const bad = [], mid = [], ok = [];
+    codes.forEach(c => { if (c === from) return; (direct[key(from, c)] ? ok : (find(c) === find(from) ? mid : bad)).push(c); });
+    const add = (title, list, cls) => {
+      if (!list.length) return;
+      const h = document.createElement('div'); h.className = 'gaph'; h.textContent = title + ' (' + list.length + ')'; box.appendChild(h);
+      const w = document.createElement('div'); w.className = 'chips';
+      list.forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.className = 'gapchip ' + cls + ($('pTo').value === c ? ' on' : ''); b.textContent = nameOf(c);
+        b.addEventListener('click', () => { $('pTo').value = c; renderGap(); topMsg('ok', nameOf(from) + ' → ' + nameOf(c) + ' 으로 채웠어요. 아래에서 걷기를 시작하세요.'); }); w.appendChild(b); });
+      box.appendChild(w);
+    };
+    add('🔴 아직 못 가는 곳 — 먼저 걸어 주세요', bad, 'bad');
+    add('🟡 이어서는 갈 수 있어요 — 시간 되면 직접 걸어 주세요', mid, 'mid');
+    add('✅ 직접 기록됨', ok, 'ok');
+  }
+  ['pFrom', 'pTo'].forEach(id => $(id).addEventListener('change', renderGap));
+
+  function setMode(m) {
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    $('modeLoc').classList.toggle('hide', m !== 'loc');
+    $('modePath').classList.toggle('hide', m !== 'path');
+    topMsg('', '');
+  }
+  $('tabs').addEventListener('click', function (e) {
+    const b = e.target.closest('button'); if (!b) return;
+    if (pBusy || watchId !== null) { topMsg('err', '기록(측정) 중에는 탭을 바꿀 수 없어요. 먼저 끝내 주세요.'); return; }
+    setMode(b.dataset.m);
+  });
+
+  function toXY(p) { return [p.lng * 88000, p.lat * 110950]; }
+  function pathLen(pts) {
+    let L = 0;
+    for (let i = 1; i < pts.length; i++) L += distM(pts[i - 1].lat, pts[i - 1].lng, pts[i].lat, pts[i].lng);
+    return L;
+  }
+  function smooth(pts) {
+    if (pts.length < 4) return pts;
+    return pts.map((p, i) => {
+      if (i === 0 || i === pts.length - 1) return p;
+      const a = pts[i - 1], c = pts[i + 1];
+      const o = { lat: (a.lat + p.lat + c.lat) / 3, lng: (a.lng + p.lng + c.lng) / 3 };
+      const alts = [a.alt, p.alt, c.alt].filter(v => v != null);
+      o.alt = alts.length ? (alts.reduce((s, v) => s + v, 0) / alts.length) : null;
+      return o;
+    });
+  }
+  // Douglas-Peucker (미터 단위 근사 좌표)
+  function simplify(pts, tol) {
+    if (pts.length < 3) return pts.slice();
+    const xy = pts.map(toXY), keep = new Array(pts.length).fill(false);
+    keep[0] = keep[pts.length - 1] = true;
+    const stack = [[0, pts.length - 1]];
+    while (stack.length) {
+      const se = stack.pop(), s0 = se[0], e0 = se[1];
+      const ax = xy[s0][0], ay = xy[s0][1], bx = xy[e0][0], by = xy[e0][1];
+      const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+      let maxD = -1, idx = -1;
+      for (let i = s0 + 1; i < e0; i++) {
+        let t = len2 ? ((xy[i][0] - ax) * dx + (xy[i][1] - ay) * dy) / len2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        const px = ax + t * dx, py = ay + t * dy;
+        const d = Math.hypot(xy[i][0] - px, xy[i][1] - py);
+        if (d > maxD) { maxD = d; idx = i; }
+      }
+      if (maxD > tol && idx > 0) { keep[idx] = true; stack.push([s0, idx], [idx, e0]); }
+    }
+    return pts.filter((_, i) => keep[i]);
+  }
+  // "위도*1e5,경도*1e5[,고도m];증분,증분[,증분];..." — 고도가 전부 없으면 기존 2값 형식 그대로 유지
+  function nearestAlt_(pts, i) {
+    for (let k = i; k >= 0; k--) if (pts[k].alt != null) return pts[k].alt;
+    for (let k = i; k < pts.length; k++) if (pts[k].alt != null) return pts[k].alt;
+    return null;
+  }
+  function encodePath(pts) {
+    const hasAlt = pts.some(p => p.alt != null);
+    let la = Math.round(pts[0].lat * 1e5), ln = Math.round(pts[0].lng * 1e5);
+    let altPrev = hasAlt ? Math.round(nearestAlt_(pts, 0)) : null;
+    const out = [hasAlt ? (la + ',' + ln + ',' + altPrev) : (la + ',' + ln)];
+    for (let i = 1; i < pts.length; i++) {
+      const a = Math.round(pts[i].lat * 1e5), b = Math.round(pts[i].lng * 1e5);
+      if (hasAlt) {
+        const altCur = Math.round(nearestAlt_(pts, i));
+        out.push((a - la) + ',' + (b - ln) + ',' + (altCur - altPrev));
+        altPrev = altCur;
+      } else {
+        out.push((a - la) + ',' + (b - ln));
+      }
+      la = a; ln = b;
+    }
+    return out.join(';');
+  }
+
+  function wakeOn() { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').then(w => { pWake = w; }).catch(() => {}); } catch (e) {} }
+  function wakeOff() { try { if (pWake) { pWake.release(); pWake = null; } } catch (e) {} }
+
+  function startPath() {
+    if (!navigator.geolocation) { topMsg('err', '이 기기(브라우저)는 위치 기능을 지원하지 않습니다.'); return; }
+    topMsg('', '');
+    pPts = []; pFinal = null; pBusy = true;
+    $('pResult').innerHTML = ''; $('cardPathSave').classList.add('hide');
+    $('wUp').value = ''; $('wDown').value = '';
+    $('btnPath').textContent = '기록 끝내기'; $('btnPath').classList.add('stop');
+    $('pLive').textContent = '위치 신호를 찾는 중...';
+    wakeOn();
+    pWatch = navigator.geolocation.watchPosition(onPathPos, function (err) {
+      if (err && err.code === 1) { endPath(true); topMsg('err', '위치 권한이 꺼져 있어요. 설정에서 이 페이지의 위치 권한을 허용해 주세요.'); }
+      else $('pLive').textContent = '위치 신호를 찾는 중... 하늘이 트인 곳으로 이동해 주세요.';
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  }
+
+  function onPathPos(pos) {
+    const c = pos.coords;
+    if (c.accuracy > P_MAX_ACC) { $('pLive').textContent = '신호가 약해요 (오차 ±' + Math.round(c.accuracy) + 'm). 잠시 기다려 주세요.'; return; }
+    const last = pPts[pPts.length - 1];
+    if (!last || distM(last.lat, last.lng, c.latitude, c.longitude) >= Math.max(P_MIN_STEP, c.accuracy * 0.6)) {
+      pPts.push({ lat: c.latitude, lng: c.longitude, acc: c.accuracy, alt: (c.altitude != null ? c.altitude : null) });
+    }
+    const altTxt = (c.altitude != null) ? (' · 고도 ' + Math.round(c.altitude) + 'm') : ' · 고도 신호 없음';
+    $('pLive').innerHTML = '<span class="big">' + Math.round(pathLen(pPts)) + 'm</span> 걸었어요 · 점 ' + pPts.length + '개 · 오차 ±' + Math.round(c.accuracy) + 'm' + altTxt;
+  }
+
+  function endPath(silent) {
+    if (pWatch !== null) { try { navigator.geolocation.clearWatch(pWatch); } catch (e) {} pWatch = null; }
+    wakeOff();
+    pBusy = false;
+    $('btnPath').textContent = '걷기 시작'; $('btnPath').classList.remove('stop');
+    if (silent) { $('pLive').textContent = ''; return; }
+    if (pPts.length < 3 || pathLen(pPts) < 15) {
+      $('pLive').textContent = '';
+      $('pResult').innerHTML = '<div class="result bad">기록된 길이 너무 짧아요(15m 이상 필요). 다시 걸으며 기록해 주세요.</div>';
+      return;
+    }
+    let tol = P_SIMPLIFY_M, simp, enc;
+    for (let i = 0; i < 12; i++) {
+      simp = simplify(smooth(pPts), tol);
+      enc = encodePath(simp);
+      if (simp.length <= P_MAX_PTS && enc.length <= 5000) break;
+      tol += 1.5;
+    }
+    const len = pathLen(simp);
+    let up = 0, down = 0, hadAlt = false;
+    for (let i = 1; i < pPts.length; i++) {
+      const a0 = pPts[i - 1].alt, a1 = pPts[i].alt;
+      if (a0 == null || a1 == null) continue;
+      hadAlt = true;
+      const d = a1 - a0;
+      if (d > 0) up += d; else down -= d;
+    }
+    pFinal = { id: 'p' + Date.now(), enc: enc, len: Math.round(len), pts: simp.length };
+    pendUpsert({ id: pFinal.id, enc: enc, len: pFinal.len, pts: pFinal.pts, from: $('pFrom').value, to: $('pTo').value });
+    $('pLive').textContent = '';
+    const altTxt = hadAlt ? (' · ⬆️' + Math.round(up) + 'm ⬇️' + Math.round(down) + 'm') : ' · 고도 정보 없음';
+    $('pResult').innerHTML = '<div class="result good"><span class="coord">' + Math.round(len) + 'm · 점 ' + simp.length + '개' + altTxt + '</span>' +
+      '기록이 끝났어요. 아래에서 저장해 주세요.</div>';
+    $('cardPathSave').classList.remove('hide');
+  }
+
+  $('btnPath').addEventListener('click', function () { if (pBusy) endPath(false); else startPath(); });
+  $('btnPathDiscard').addEventListener('click', function () {
+    if (pFinal) pendRemove(pFinal.id);
+    pFinal = null; pPts = []; $('pResult').innerHTML = ''; $('cardPathSave').classList.add('hide');
+    $('wUp').value = ''; $('wDown').value = '';
+  });
+  $('btnPathSave').addEventListener('click', function () {
+    if (!pFinal || pBusy) return;
+    const btn = $('btnPathSave'); btn.disabled = true; btn.textContent = '저장 중...';
+    const item = { id: pFinal.id, enc: pFinal.enc, len: pFinal.len, pts: pFinal.pts, from: $('pFrom').value, to: $('pTo').value };
+    const wUpVal = $('wUp').value.trim(), wDownVal = $('wDown').value.trim();
+    if (wUpVal !== '' && wDownVal !== '') { item.wUp = wUpVal; item.wDown = wDownVal; }
+    pendUpsert(item);   // 출발·도착을 확정해 폰에 보관
+    sendPath(item).then(r => {
+      btn.disabled = false; btn.textContent = '이 길 저장';
+      if (r.ok) {
+        pendRemove(item.id);
+        pathCount = r.pathCount; $('pathCount').textContent = '기록된 길 ' + pathCount + '개'; loadGapPairs();
+        pFinal = null; pPts = [];
+        $('pResult').innerHTML = ''; $('cardPathSave').classList.add('hide');
+        $('wUp').value = ''; $('wDown').value = '';
+        topMsg('ok', '서버에 저장됐어요 (기록된 길 ' + pathCount + '개). 다른 길도 이어서 걸어 주세요!');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        topMsg('err', r.message + ' 걸은 길은 이 폰에 보관되어 있으니 걱정 마세요. 나중에 "다시 보내기"로 보낼 수 있어요.');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // 보관 중인 길 다시 보내기
+  $('btnPending').addEventListener('click', function () {
+    const btn = $('btnPending'); btn.disabled = true;
+    const list = pendGet();
+    let done = 0;
+    (function next(i) {
+      if (i >= list.length) { btn.disabled = false; btn.textContent = '다시 보내기'; topMsg('ok', done + '개의 길을 서버에 저장했어요.'); return; }
+      btn.textContent = '보내는 중... (' + (i + 1) + '/' + list.length + ')';
+      sendPath(list[i]).then(r => {
+        if (r.ok) { done++; pathCount = r.pathCount; $('pathCount').textContent = '기록된 길 ' + pathCount + '개'; pendRemove(list[i].id); next(i + 1); }
+        else { btn.disabled = false; btn.textContent = '다시 보내기'; topMsg('err', r.message + ' (' + done + '개 보냄, ' + (list.length - done) + '개 남음. 폰에 그대로 보관돼요)'); }
+      });
+    })(0);
+  });
+  function refreshPathBtn() { $('btnPath').disabled = !(surveyor && TOKEN); }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && pBusy) wakeOn(); });
+
+  renderPending();
+  loadInfo();
+  refreshButtons();
+})();
+</script>
+<div style="position:fixed;bottom:4px;right:6px;font-size:10px;opacity:0.35;pointer-events:none;z-index:9999;color:inherit;">페이지 버전: 2610272249</div>
+</body>
+</html>

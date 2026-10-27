@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>다녀봐! 강대강캠 — 길찾기</title>
+<style>
+  :root {
+    --bg:#f6f4ef; --card:#ffffff; --text:#25272b; --t2:#5b6068; --t3:#8a8f98;
+    --line:#dcd8cf; --accent:#2f6fb5; --accent-soft:rgba(47,111,181,.12); --on-accent:#fff;
+    --ok:#2e8b57; --ok-soft:rgba(46,139,87,.12); --warn:#b9770e; --warn-soft:rgba(185,119,14,.13);
+    --danger:#c0392b; --danger-soft:rgba(192,57,43,.11); --field:#fbfaf7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#1d1f23; --card:#272a2f; --text:#e7e8ea; --t2:#aeb2b9; --t3:#7f858d;
+      --line:#3a3e45; --accent:#6aa6e6; --accent-soft:rgba(106,166,230,.16); --on-accent:#0f1a28;
+      --ok:#5fc08a; --ok-soft:rgba(95,192,138,.15); --warn:#e0a84a; --warn-soft:rgba(224,168,74,.16);
+      --danger:#ef8a7e; --danger-soft:rgba(239,138,126,.15); --field:#202327;
+    }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { margin:0; background:var(--bg); color:var(--text); }
+  body { font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif; line-height:1.5;
+         padding:16px 16px calc(24px + env(safe-area-inset-bottom)); max-width:620px; margin:0 auto; }
+  h1 { font-size:20px; margin:4px 0 2px; }
+  .sub { color:var(--t2); font-size:13px; margin-bottom:14px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px; }
+  label { display:block; font-size:12px; color:var(--t2); margin:0 0 4px; }
+  input[type=text] { width:100%; font-size:16px; padding:11px 12px; border:1px solid var(--line); border-radius:10px;
+                      background:var(--field); color:var(--text); font-family:inherit; }
+  input:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .results { margin-top:8px; display:flex; flex-direction:column; gap:4px; max-height:260px; overflow:auto; }
+  .ritem { border:1px solid var(--line); border-radius:10px; padding:9px 11px; cursor:pointer; background:var(--field); }
+  .ritem:hover, .ritem:active { border-color:var(--accent); background:var(--accent-soft); }
+  .ritem b { font-size:14px; } .ritem span { display:block; font-size:12px; color:var(--t2); margin-top:2px; }
+  .msg { font-size:14px; border-radius:10px; padding:11px 12px; margin-bottom:12px; }
+  .msg.err { background:var(--danger-soft); color:var(--danger); }
+  .msg.warn { background:var(--warn-soft); color:var(--warn); }
+  .step { font-weight:700; font-size:14px; margin:0 0 10px; display:flex; align-items:center; gap:8px; }
+  .step b { display:inline-flex; width:22px; height:22px; border-radius:50%; background:var(--accent); color:var(--on-accent);
+            align-items:center; justify-content:center; font-size:12px; flex:none; }
+  .hide { display:none !important; }
+  .fade { opacity:0; transform:translateY(6px); transition:opacity .4s, transform .4s; }
+  .fade.in { opacity:1; transform:none; }
+  .floorsvg { width:100%; height:190px; display:block; margin:18px 0 6px; overflow:visible; }
+  .floorsvg.stack { height:auto; }
+  .minirow { display:flex; flex-wrap:wrap; gap:4px; margin:6px 0 2px; }
+  .miniwrap { text-align:center; }
+  .minilabel { font-size:11px; color:var(--t2); font-weight:700; margin-bottom:2px; }
+  .floorplan-mini { width:150px; height:104px; display:block; }
+  .navline { stroke:#e2402f; stroke-width:3; stroke-linecap:round; stroke-linejoin:round; fill:none;
+             stroke-dasharray:100; stroke-dashoffset:100; animation: navdraw 2.8s linear forwards; animation-delay:.4s; }
+  @keyframes navdraw { to { stroke-dashoffset:0; } }
+  .navend { fill:#e2402f; opacity:0; transform-box:fill-box; transform-origin:center;
+            animation: navpop .5s cubic-bezier(.34,1.56,.64,1) forwards; animation-delay:3.2s; }
+  @keyframes navpop { from{ opacity:0; transform:scale(.2); } to{ opacity:1; transform:scale(1); } }
+  .navend-ring { fill:none; stroke:#e2402f; stroke-width:2; opacity:0; transform-box:fill-box; transform-origin:center;
+                 animation: navring 1.6s ease-out infinite; animation-delay:3.2s; }
+  @keyframes navring { 0%{ opacity:.65; transform:scale(.7); } 100%{ opacity:0; transform:scale(2.6); } }
+  .legend { font-size:12px; color:var(--t3); margin-top:4px; }
+  .btn { border:0; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:700; font-family:inherit; cursor:pointer;
+         background:var(--accent); color:var(--on-accent); }
+  .btn.ghost { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+  .finalcard { text-align:center; padding:18px 14px; }
+  .finalcard .room-no { font-size:28px; font-weight:800; color:var(--ok); }
+  .tip { font-size:12.5px; color:var(--t3); }
+</style>
+</head>
+<body>
+
+<h1>🧭 다녀봐! 강대강캠</h1>
+<div class="sub">건물·호실을 검색하면 출입구부터 목적지까지 안내해 드려요. (현장조사 자료 기반 — 데이터가 더 모일수록 더 정확해져요)</div>
+
+<div id="topMsg"></div>
+
+<div class="card" id="searchCard">
+  <label for="q">건물 이름 또는 호실로 검색</label>
+  <input type="text" id="q" placeholder="예: 공학1호관, 301, 치학1호관 405">
+  <div class="results" id="results"></div>
+  <div class="tip" id="emptyTip" style="margin-top:8px;">아직 층 조사가 끝난 호실만 검색돼요. 2글자 이상 입력해 주세요.</div>
+</div>
+
+<div id="route"></div>
+
+<div class="tip" style="text-align:center;margin-top:22px;opacity:.6;" id="buildInfo"></div>
+
+<script>
+(function () {
+  'use strict';
+  const BUILD = 'v27 · 2026-10-19 15:35 KST';
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdFualGxneSbdscvcDxOnIXqqYq2zoK6uZe_c10zog07Cew6F8HUzjNeN7cCnuZ9C0/exec';
+  const $ = id => document.getElementById(id);
+  $('buildInfo').textContent = BUILD;
+
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function topMsg(type, text) { $('topMsg').innerHTML = text ? '<div class="msg ' + type + '">' + esc(text) + '</div>' : ''; }
+  function api(params) {
+    const q = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+    return fetch(GAS_URL + '?page=api&' + q + '&_=' + Date.now()).then(r => r.json());
+  }
+
+  // ---------- 미션·호실 목록 ----------
+  let missions = [];   // [{id, building, floor, label, rooms:[{no,name}]}]
+  let index = [];      // [{no,name,missionId,building,floor,label}]
+
+  function loadMissions() {
+    return api({ action: 'floormissions' }).then(res => {
+      if (!res || !res.success) { topMsg('err', '층 조사 정보를 불러오지 못했습니다.'); return; }
+      missions = res.missions || [];
+      index = [];
+      missions.forEach(m => (m.rooms || []).forEach(r => {
+        index.push({ no: r.no, name: r.name, missionId: m.id, building: m.building, floor: m.floor, label: m.label });
+      }));
+      if (!index.length) topMsg('warn', '아직 층 조사가 완료되어 공개된 호실이 없어요. 층 조사가 더 진행되면 검색할 수 있어요.');
+    }).catch(() => { topMsg('err', '서버에 연결하지 못했습니다.'); });
+  }
+
+  function doSearch(qstr) {
+    const box = $('results'); box.innerHTML = '';
+    const tip = $('emptyTip');
+    const q = qstr.trim();
+    if (q.length < 2) { tip.classList.remove('hide'); return; }
+    tip.classList.add('hide');
+    const hits = index.filter(r =>
+      (r.no + ' ' + r.name + ' ' + r.building).toLowerCase().indexOf(q.toLowerCase()) >= 0
+    ).slice(0, 30);
+    if (!hits.length) { box.innerHTML = '<div class="tip">검색 결과가 없어요.</div>'; return; }
+    hits.forEach(h => {
+      const d = document.createElement('div');
+      d.className = 'ritem';
+      d.innerHTML = '<b>' + esc(h.building) + ' ' + esc(h.no) + '호' + (h.name ? ' · ' + esc(h.name) : '') + '</b>' +
+                    '<span>' + esc(h.label) + '</span>';
+      d.addEventListener('click', () => selectRoom(h));
+      box.appendChild(d);
+    });
+  }
+  $('q').addEventListener('input', e => doSearch(e.target.value));
+
+  // ---------- 층 레이아웃(최근 제출 그대로 사용 — 검수 전 v1) ----------
+  function loadLayout(missionId) {
+    return api({ action: 'floorlayout', id: missionId }).then(res => (res && res.success) ? res : null).catch(() => null);
+  }
+
+  function findRoomAnchor(layout, roomNo) {
+    // roomNo가 포함된 walk 과, 그 walk이 속한 anchor 객체, 그리고 walk 안에서의 순서(side 포함)를 찾음
+    let found = null;
+    (layout.walks || []).forEach(w => {
+      const idx = (w.items || []).findIndex(it => String(it.no) === String(roomNo));
+      if (idx >= 0) found = { walk: w, idx: idx };
+    });
+    if (!found) return null;
+    const anchor = (layout.anchors || []).find(a => a.name === found.walk.anchor) || (layout.anchors || [])[0] || null;
+    return { anchor: anchor, walk: found.walk, idx: found.idx };
+  }
+
+  function sameName(a, b) { return String(a || '').trim() && String(a || '').trim() === String(b || '').trim(); }
+
+  // ---------- 화면 구성 ----------
+  function selectRoom(h) {
+    $('results').innerHTML = ''; $('q').value = h.building + ' ' + h.no + '호';
+    topMsg('', '');
+    const sameBld = missions.filter(m => m.building === h.building);
+    // 별도 출발 지점 정보가 없으면 언제나 "1층 정문"을 출발점으로 삼는다 — 그 건물 1층이
+    // 아직 조사되지 않았더라도(= groundMission 없음) 목표 층이 1층이 아니면 여러 층을 거쳐
+    // 올라가는 것으로 안내하고, 1층 자리는 빈 레이어로만 표시한다.
+    const groundMission = sameBld.find(m => Number(m.floor) === 1);
+    const target = missions.find(m => m.id === h.missionId);
+    if (!target) { topMsg('err', '미션 정보를 찾지 못했습니다.'); return; }
+
+    $('route').innerHTML = '<div class="card"><div class="tip">경로를 준비하는 중...</div></div>';
+
+    const needGround = Number(target.floor) !== 1;
+    Promise.all([
+      loadLayout(target.id),
+      (needGround && groundMission) ? loadLayout(groundMission.id) : Promise.resolve(null)
+    ]).then(([tLayout, gLayoutRaw]) => {
+      if (!tLayout) { $('route').innerHTML = '<div class="card msg err">이 호실의 층 안내 자료가 아직 준비되지 않았어요.</div>'; return; }
+      const gLayout = (gLayoutRaw && gLayoutRaw.source === 'submit') ? gLayoutRaw : null;
+      if (needGround && canUseIsoStack(tLayout, h.no)) {
+        // 등각 평면도 쌓기를 쓸 수 있으면, 건물 전체 층(1층~꼭대기층)의 외곽선도 함께 받아와서
+        // 목적지가 아닌 층도 실제 건물 모양 그대로 겹겹이 쌓아 보여줌(방 상세는 생략).
+        const others = sameBld.filter(m => m.id !== target.id && !(groundMission && m.id === groundMission.id));
+        Promise.all(others.map(m => loadLayout(m.id).then(l => ({ floor: Number(m.floor), layout: (l && l.source === 'submit') ? l : null }))))
+          .then(extra => {
+            const floorMap = {};
+            extra.forEach(e => { if (e.layout) floorMap[e.floor] = e.layout; });
+            floorMap[1] = gLayout || floorMap[1] || null;
+            floorMap[Number(target.floor)] = tLayout;
+            renderRoute(h, target, tLayout, needGround, gLayout, sameBld, floorMap);
+          });
+      } else {
+        renderRoute(h, target, tLayout, needGround, gLayout, sameBld, null);
+      }
+    });
+  }
+
+  function renderRoute(h, target, tLayout, needGround, gLayout, sameBld, floorMap) {
+    if (tLayout.source === 'drawing') { renderDrawingOnly(h, target, tLayout); return; }
+    const steps = [];
+
+    if (needGround) {
+      // 별도의 출발 지점 정보가 없으면 1층 정문을 출발점으로 삼아, 각 층을 레이어로 쌓고
+      // 정문 → 계단/엘리베이터 → (여러 층 관통) → 목표 층 → 목적 호실 앞까지 하나의 선으로 그림.
+      // 1층이 아직 조사되지 않았으면(gLayout 없음) 1층 자리는 빈 레이어로만 보여줌.
+      // 목적지 방의 실제 x,y 좌표까지 들어온 층은 평면도를 등각으로 쌓는 방식(buildIsoStack)을
+      // 쓰고, 아직 그 데이터가 없는 층은 기존 복도 도식(renderFloorStack)으로 자동 대체됨.
+      const built = (floorMap && canUseIsoStack(tLayout, h.no)) ? buildIsoStack(h, target, tLayout, gLayout, sameBld, floorMap) : renderFloorStack(h, target, tLayout, gLayout);
+      const useWord = built.wantElev ? '엘리베이터' : '계단/엘리베이터';
+      steps.push(
+        '<div class="card fade"><div class="step"><b>1</b>1층 정문 → ' + esc(target.floor) + '층 ' + esc(h.no) + '호</div>' +
+        '<div class="tip" style="margin-bottom:4px;">' +
+        (gLayout ? '※ 건물 출입구와 1층 정문을 잇는 정보는 아직 수집 중이라, 1층 정문부터 안내해 드려요.' :
+          '※ 이 건물 1층은 아직 조사 전이라, 1층 정문부터 출발하는 것으로만 안내해 드려요(정확한 1층 경로는 추후 보완돼요).') +
+        (built.wantElev ? ' 4층 이상이라 엘리베이터로 안내해 드려요.' : '') + '</div>' +
+        built.svg +
+        '<div class="legend">🟦 지나가는 길 · 🟩 도착 호실' +
+        (built.usedFallbackStair ? ' · <span style="color:var(--warn)">이 건물은 엘리베이터 연결 정보가 없어 계단으로 안내했어요.</span>' :
+          (built.matched ? '' : ' · <span style="color:var(--warn)">같은 ' + useWord + '인지 확인된 정보가 없어 일반 이동으로 표시했어요.</span>')) +
+        '</div></div>'
+      );
+    } else {
+      steps.push(
+        '<div class="card fade"><div class="step"><b>1</b>건물 진입</div>' +
+        '<div>🏢 <b>' + esc(h.building) + '</b> 건물로 들어가세요.</div>' +
+        '<div class="tip" style="margin-top:6px;">※ 건물 출입구와 실내 경로를 잇는 정보는 아직 수집 중이에요. 건물 안에 들어오신 뒤부터 안내해 드려요.</div></div>'
+      );
+      const info = findRoomAnchor(tLayout, h.no);
+      const isoSvg = canUseIsoStack(tLayout, h.no) ? buildIsoSingleFloor(tLayout, h.no, null) : null;
+      steps.push(
+        '<div class="card fade"><div class="step"><b>2</b>' + esc(target.floor) + '층 ' + esc(h.no) + '호 찾기</div>' +
+        (isoSvg || renderFloorSvg(tLayout, h.no, info, null)) +
+        '<div class="legend">🟦 지나가는 길 · 🟩 도착 호실' + (info ? '' : ' · <span style="color:var(--warn)">정확한 경로 정보가 부족해 층 전체 배치만 보여드려요.</span>') + '</div></div>'
+      );
+    }
+
+    steps.push(
+      '<div class="card finalcard fade"><div style="font-size:13px;color:var(--t2);">목적지</div>' +
+      '<div class="room-no">' + esc(h.building) + ' ' + esc(h.no) + '호' + (h.name ? '<br><span style="font-size:15px;color:var(--t2);">' + esc(h.name) + '</span>' : '') + '</div>' +
+      '<button class="btn ghost" style="margin-top:10px;" onclick="location.reload()">다른 곳 찾기</button></div>'
+    );
+
+    $('route').innerHTML = steps.join('');
+    // 순서대로 살짝 나타나는 애니메이션
+    const cards = document.querySelectorAll('#route .fade');
+    cards.forEach((c, i) => setTimeout(() => c.classList.add('in'), i * 260));
+  }
+
+  // 아직 걷기 조사 제출이 없고 도면조사 참고정보만 있는 경우 — 구조화된 경로 대신 안내 문구만 보여줌
+  function renderDrawingOnly(h, target, tLayout) {
+    $('route').innerHTML =
+      '<div class="card fade"><div class="step"><b>1</b>건물 진입</div>' +
+      '<div>🏢 <b>' + esc(h.building) + '</b> 건물로 들어가세요.</div></div>' +
+      '<div class="card fade"><div class="step"><b>2</b>' + esc(target.floor) + '층 ' + esc(h.no) + '호 찾기</div>' +
+      '<div class="tip" style="margin-bottom:8px;">아직 실제로 걸으며 확인한 경로는 없지만, 도면 조사로 확인된 참고정보가 있어요:</div>' +
+      '<div style="font-size:13px;line-height:1.7;">' + esc(tLayout.note || '') + '</div>' +
+      '<div class="tip" style="margin-top:8px;color:var(--warn);">※ 도면만으로 확인한 정보라 실제와 다를 수 있어요. 정확한 경로는 현장 조사가 더 필요해요.</div></div>' +
+      '<div class="card finalcard fade"><div style="font-size:13px;color:var(--t2);">목적지</div>' +
+      '<div class="room-no">' + esc(h.building) + ' ' + esc(h.no) + '호' + (h.name ? '<br><span style="font-size:15px;color:var(--t2);">' + esc(h.name) + '</span>' : '') + '</div>' +
+      '<button class="btn ghost" style="margin-top:10px;" onclick="location.reload()">다른 곳 찾기</button></div>';
+    const cards = document.querySelectorAll('#route .fade');
+    cards.forEach((c, i) => setTimeout(() => c.classList.add('in'), i * 260));
+  }
+
+  // 3D 블록 하나(옆면+정면+윗면)를 그리는 SVG 조각 — 층을 평평한 아이콘 나열이 아니라 입체 건물처럼 보이게 함
+  function box3d(cx, baseY, w, h, depth, topFill, frontFill, stroke) {
+    const hw = w / 2;
+    const topPts = [
+      [cx - hw, baseY - h], [cx + hw, baseY - h],
+      [cx + hw + depth, baseY - h - depth], [cx - hw + depth, baseY - h - depth]
+    ].map(p => p.join(',')).join(' ');
+    const sidePts = [
+      [cx + hw, baseY - h], [cx + hw + depth, baseY - h - depth],
+      [cx + hw + depth, baseY - depth], [cx + hw, baseY]
+    ].map(p => p.join(',')).join(' ');
+    return '<polygon points="' + sidePts + '" fill="' + frontFill + '" opacity="0.55" stroke="' + stroke + '" stroke-width="0.6"/>' +
+           '<rect x="' + (cx - hw) + '" y="' + (baseY - h) + '" width="' + w + '" height="' + h + '" fill="' + frontFill + '" stroke="' + stroke + '" stroke-width="0.8"/>' +
+           '<polygon points="' + topPts + '" fill="' + topFill + '" stroke="' + stroke + '" stroke-width="0.6"/>';
+  }
+
+  // 출입구/계단/엘리베이터를 서로 구별되는 모양(문 스윙선 / 계단 디딤판 / 승강기 상하화살표)으로 그려줌
+  function anchorGlyph(type, cx, baseY, h, color) {
+    if (type === 'stair') {
+      const steps = 4, x0 = cx - 7, stepW = 14 / steps, stepH = (h - 6) / steps;
+      let d = 'M ' + x0 + ' ' + baseY;
+      for (let i = 0; i < steps; i++) {
+        const y = baseY - (i + 1) * stepH;
+        d += ' L ' + x0 + ' ' + y + ' L ' + (x0 + (i + 1) * stepW) + ' ' + y;
+      }
+      return '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+    if (type === 'elev') {
+      const top = baseY - h + 6, bot = baseY - 4, mid = (top + bot) / 2;
+      return '<path d="M ' + (cx - 4) + ' ' + (mid - 3) + ' L ' + cx + ' ' + top + ' L ' + (cx + 4) + ' ' + (mid - 3) + ' Z" fill="' + color + '"/>' +
+             '<path d="M ' + (cx - 4) + ' ' + (mid + 3) + ' L ' + cx + ' ' + bot + ' L ' + (cx + 4) + ' ' + (mid + 3) + ' Z" fill="' + color + '"/>';
+    }
+    // door: 문짝 선 + 열리는 방향을 나타내는 호(swing arc) — 평면도에서 흔히 쓰는 출입구 표기
+    const px = cx - 6;
+    return '<line x1="' + px + '" y1="' + (baseY - h) + '" x2="' + px + '" y2="' + baseY + '" stroke="' + color + '" stroke-width="2.2"/>' +
+           '<path d="M ' + px + ' ' + (baseY - h) + ' A ' + h + ' ' + h + ' 0 0 1 ' + (px + h) + ' ' + baseY + '" fill="none" stroke="' + color + '" stroke-width="1" stroke-dasharray="2,2" opacity="0.8"/>';
+  }
+
+  // 계단/엘리베이터는 층을 잇는 구조물이므로 평면도 위가 아니라, 등각으로 쌓은 층과 층
+  // "사이"(간격)에 입체적으로 그려서 실제로 타고 올라가는 느낌을 줌.
+  // SVG(g)와 함께, 안내선이 이 구조물의 경사를 따라가도록 중심선 좌표(path, 아래→위
+  // 순서)도 같이 돌려줌 — 계단이면 꺾이는 중심선, 엘리베이터면 그냥 수직선.
+  function buildVerticalConnector(x, yTop, yBottom, isElev) {
+    if (yBottom - yTop < 4) return { g: '', path: [{ x: x, y: yBottom }, { x: x, y: yTop }] };
+    if (isElev) {
+      const w = 15, midY = (yTop + yBottom) / 2;
+      const g = '<rect x="' + (x - w / 2) + '" y="' + yTop + '" width="' + w + '" height="' + (yBottom - yTop) +
+             '" rx="3" fill="var(--field)" stroke="var(--t3)" stroke-width="1.1" stroke-dasharray="2.5,2"/>' +
+             '<path d="M ' + (x - 4) + ' ' + (midY - 2) + ' L ' + x + ' ' + (midY - 8) + ' L ' + (x + 4) + ' ' + (midY - 2) + ' Z" fill="var(--t3)"/>' +
+             '<path d="M ' + (x - 4) + ' ' + (midY + 2) + ' L ' + x + ' ' + (midY + 8) + ' L ' + (x + 4) + ' ' + (midY + 2) + ' Z" fill="var(--t3)"/>';
+      return { g: g, path: [{ x: x, y: yBottom }, { x: x, y: yTop }] };
+    }
+    // 계단은 한 층 전체를 관통하는 사다리처럼 보이면 안 되니, 층마다 "중간 계단참에서
+    // 방향을 바꿔 꺾여 올라가는" 실제 계단실 모양(스위치백)으로 나눠 그림 — 디딤판은
+    // box3d 입체 블록, 가운데엔 평평한 계단참(landing) 판을 둬서 두 방향 사이를 구분함.
+    const rise = yBottom - yTop;
+    const landingH = Math.max(6, Math.min(14, rise * 0.16));
+    const flightH = Math.max(6, (rise - landingH) / 2);
+    const stepsPer = Math.max(2, Math.min(7, Math.round(flightH / 15)));
+    const stepW = 14, depth = 4;
+    const offsetA = Math.min(16, 4 + stepsPer * 2); // 안내선이 디딤판 비탈을 따라가도록 블록과 같은 폭 사용
+    function flight(fromY, toY, dir) {
+      const n = stepsPer, h = (fromY - toY) / n;
+      let f = '';
+      for (let i = 0; i < n; i++) {
+        const by = fromY - i * h;
+        const cx = x + dir * (3 + i * 2.1);
+        f += box3d(cx, by, stepW, Math.max(3, h * 0.88), depth, 'var(--field)', 'var(--card)', 'var(--t3)');
+      }
+      return f;
+    }
+    const midY = yBottom - flightH;
+    const landingTopY = midY - landingH;
+    let s = flight(yBottom, midY, -1);
+    s += '<rect x="' + (x - 14) + '" y="' + landingTopY + '" width="28" height="' + landingH +
+         '" rx="1.5" fill="var(--field)" stroke="var(--t3)" stroke-width="0.8"/>';
+    s += flight(landingTopY, yTop, 1);
+    const path = [
+      { x: x, y: yBottom },
+      { x: x - offsetA, y: midY },        // 1구간 계단 비탈을 따라 오름
+      { x: x + offsetA, y: landingTopY }, // 계단참을 가로질러 반대쪽 디딤판으로
+      { x: x, y: yTop }                   // 2구간 계단 비탈을 따라 오름
+    ];
+    return { g: s, path: path };
+  }
+
+  // 층 하나를 입체 블록 복도(group)로 그림 — <svg> 래핑 없이 내용물과 주요 좌표만 돌려줘서
+  // 단일 층 보기(renderFloorSvg)와 여러 층 쌓기(renderFloorStack) 양쪽에서 재사용함
+  // (실제 I/L/U/O 모양이 아니라 s값 순서로 단순화한 평면도)
+  function buildFloorLayer(layout, destRoomNo, info, highlightAnchorName, W) {
+    const anchors = (layout.anchors || []).slice().sort((a, b) => a.s - b.s);
+    if (!anchors.length) return null;
+    const minS = anchors[0].s, maxS = anchors[anchors.length - 1].s || 1;
+    const span = Math.max(1, maxS - minS);
+    const pad = 50;
+    const x = s => pad + ((Math.min(maxS, Math.max(minS, s)) - minS) / span) * (W - pad * 2);
+    const baseY = 140;
+    const slabW = W - pad * 2 + 20;
+
+    let g = box3d(pad + slabW / 2 - 10, baseY + 8, slabW, 10, 10, 'var(--line)', 'var(--card)', 'var(--line)');
+    const anchorX = {};
+    let doorX = null;
+    anchors.forEach(a => {
+      const hl = highlightAnchorName && sameName(a.name, highlightAnchorName);
+      const ax = x(a.s), ah = a.type === 'door' ? 20 : 26;
+      const col = hl ? 'var(--accent)' : 'var(--t3)';
+      g += box3d(ax, baseY, 14, ah, 5, col, hl ? 'var(--accent-soft)' : 'var(--field)', col);
+      g += anchorGlyph(a.type, ax, baseY, ah, hl ? 'var(--accent)' : 'var(--t2)');
+      g += '<text x="' + ax + '" y="' + (baseY - ah - 10) + '" text-anchor="middle" font-size="9" fill="' +
+           (hl ? 'var(--accent)' : 'var(--t2)') + '" font-weight="' + (hl ? '700' : '400') + '">' + esc(a.name || '') + '</text>';
+      anchorX[a.name] = ax;
+      if (a.type === 'door' && doorX == null) doorX = ax;
+    });
+
+    let destX = null, destSide = null;
+    const maxItems = Math.max(1, ...(layout.walks || []).map(w => (w.items || []).length), 1);
+    const step = span / (maxItems + 1);
+    (layout.walks || []).forEach(w => {
+      const anchor = anchors.find(a => sameName(a.name, w.anchor));
+      const baseS = anchor ? anchor.s : minS;
+      const onPath = info && info.walk === w;
+      (w.items || []).forEach((it, i) => {
+        const isDest = destRoomNo && String(it.no) === String(destRoomNo);
+        const s = baseS + (i + 1) * step;
+        const rx = x(s);
+        const top = it.side !== 'R';
+        const fill = isDest ? 'var(--ok-soft)' : (onPath ? 'var(--accent-soft)' : 'var(--field)');
+        const stroke = isDest ? 'var(--ok)' : (onPath ? 'var(--accent)' : 'var(--line)');
+        const h = 26, by = top ? baseY - 14 : baseY + 34;
+        g += box3d(rx, top ? by : by + h, 30, h, 6, fill, fill, stroke);
+        g += '<text x="' + rx + '" y="' + (top ? by - h - 4 : by + 10) + '" text-anchor="middle" font-size="10" font-weight="' +
+             (isDest ? '700' : '500') + '" fill="' + stroke + '">' + esc(it.no) + '</text>';
+        if (isDest) { destX = rx; destSide = top ? 'T' : 'B'; }
+      });
+    });
+
+    return { g: g, baseY: baseY, anchorX: anchorX, doorX: doorX != null ? doorX : x(anchors[0].s), destX: destX, destSide: destSide };
+  }
+
+  // 건물 모양(외곽선) 조감도 — 복도를 1D로 펼친 기존 다이어그램과는 별개로, 실제 평면 윤곽선 안에
+  // 계단/엘리베이터의 실제 2D 위치와 화장실 위치를 그대로 보여줌. outline 데이터가 없는 층(기존 방식으로
+  // 조사된 층)은 그냥 빈 문자열을 돌려줘서 화면에 아무 변화가 없음(하위 호환).
+  function buildFloorOutlinePanel(layout, highlightAnchorName, label) {
+    const outline = layout && layout.outline;
+    if (!outline || outline.length < 3) return '';
+    const xs = outline.map(p => Number(p[0])), ys = outline.map(p => Number(p[1]));
+    const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+    const minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+    const spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+    const W = 220, H = 150, pad = 18;
+    const scale = Math.min((W - pad * 2) / spanX, (H - pad * 2) / spanY);
+    const offX = pad + (W - pad * 2 - spanX * scale) / 2 - minX * scale;
+    const offY = pad + (H - pad * 2 - spanY * scale) / 2 - minY * scale;
+    const px = x => offX + Number(x) * scale, py = y => offY + Number(y) * scale;
+
+    const pts = outline.map(p => px(p[0]) + ',' + py(p[1])).join(' ');
+    let svg = '<svg class="floorplan-mini" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">';
+    svg += '<polygon points="' + pts + '" fill="var(--field)" stroke="var(--line)" stroke-width="1.6"/>';
+
+    (layout.anchors || []).forEach(a => {
+      if (a.x == null || a.y == null) return;
+      const hl = highlightAnchorName && sameName(a.name, highlightAnchorName);
+      const cx = px(a.x), cy = py(a.y);
+      const color = hl ? 'var(--accent)' : (a.type === 'elev' ? 'var(--warn)' : 'var(--t2)');
+      svg += anchorGlyph(a.type, cx, cy + 9, 16, color);
+      svg += '<text x="' + cx + '" y="' + (cy - 11) + '" text-anchor="middle" font-size="8" fill="' + color +
+        '" font-weight="' + (hl ? '700' : '500') + '">' + esc(a.name || '') + '</text>';
+    });
+
+    (layout.restrooms || []).forEach(r => {
+      if (r.x == null || r.y == null) return;
+      svg += '<text x="' + px(r.x) + '" y="' + (py(r.y) + 4) + '" text-anchor="middle" font-size="12">🚻</text>';
+    });
+
+    svg += '</svg>';
+    return '<div class="miniwrap"><div class="minilabel">' + esc(label || '') + '</div>' + svg + '</div>';
+  }
+
+  // 층 하나만 보여줄 때(같은 층 안내) — 출발점을 따로 지정하지 않으면 그 층의 출입구(door)를 기본 출발점으로 씀
+  function renderFloorSvg(layout, destRoomNo, info, highlightAnchorName) {
+    const W = 640, H = 240;
+    const layer = buildFloorLayer(layout, destRoomNo, info, highlightAnchorName, W);
+    if (!layer) return '<div class="tip">이 층의 배치 정보가 없어요.</div>';
+    let svg = '<svg class="floorsvg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">' + layer.g;
+    if (layer.destX != null) {
+      const startX = (highlightAnchorName && layer.anchorX[highlightAnchorName] != null) ? layer.anchorX[highlightAnchorName] : layer.doorX;
+      const stubY = layer.destSide === 'T' ? (layer.baseY - 14 + 6) : (layer.baseY + 34 - 6);
+      const d = 'M ' + startX + ' ' + layer.baseY + ' L ' + layer.destX + ' ' + layer.baseY + ' L ' + layer.destX + ' ' + stubY;
+      svg += '<path class="navline" d="' + d + '" pathLength="100"/>';
+      svg += '<circle class="navend-ring" cx="' + layer.destX + '" cy="' + stubY + '" r="5"/>';
+      svg += '<circle class="navend" cx="' + layer.destX + '" cy="' + stubY + '" r="5"/>';
+    }
+    svg += '</svg>';
+    const panel = buildFloorOutlinePanel(layout, highlightAnchorName, '건물 모양(조감도)');
+    return (panel ? '<div class="minirow">' + panel + '</div>' : '') + svg;
+  }
+
+  // 여러 층을 레이어처럼 쌓아 그리고, 1층 정문 → 계단/엘리베이터 → (중간 층 관통) → 목표 층 → 목적 호실 앞까지
+  // 하나로 이어진 빨간 안내선을 그림. 데이터가 없는 중간 층은 얇은 통과용 판으로만 표시함.
+  // 입구층·목표층은 서로 복도 모양(출입구/계단 위치)이 전혀 달라서, 계단 위치를 맞추려고 한쪽을 옆으로
+  // 밀면 반대쪽이 캔버스 밖으로 밀려날 수 있다 — 그래서 두 층을 먼저 그려본 뒤 필요한 만큼 캔버스를
+  // 넓혀서 둘 다 안에 들어오게 계산한다(2-pass).
+  // gLayout이 없으면(1층이 아직 조사되지 않음) 1층 자리는 실제 복도 없이 "1층 정문" 팻말만 있는
+  // 빈 레이어로 그리고, 목표 층 자체의 출입구/계단/엘리베이터를 기준으로 안내선을 그림.
+  function renderFloorStack(h, target, tLayout, gLayout) {
+    const tStairs = (tLayout.anchors || []).filter(a => a.type === 'stair' || a.type === 'elev');
+    const gStairs = gLayout ? (gLayout.anchors || []).filter(a => a.type === 'stair' || a.type === 'elev') : [];
+
+    // 목표 층이 4층 이상이면 계단보다 엘리베이터를 우선 매칭(없으면 계단으로 자연스럽게 대체)
+    const wantElev = Number(target.floor) >= 4;
+    function matchBy(typeFilter) {
+      let m = null;
+      gStairs.filter(a => !typeFilter || a.type === typeFilter).forEach(ga => {
+        tStairs.filter(a => !typeFilter || a.type === typeFilter).forEach(ta => {
+          if (!m && sameName(ga.name, ta.name) && ga.type === ta.type) m = ta;
+        });
+      });
+      return m;
+    }
+    let matched = (gLayout && wantElev) ? matchBy('elev') : null;
+    let usedFallbackStair = !!gLayout && wantElev && !matched;   // 4층 이상인데 엘리베이터 연결 정보가 없어 계단으로 대체됨
+    if (gLayout && !matched) matched = matchBy(null);
+
+    const tElev = tStairs.find(a => a.type === 'elev');
+    const tPreferred = (wantElev && tElev) ? tElev : (tStairs[0] || null);
+    const tAnchorName = matched ? matched.name : (tPreferred ? tPreferred.name : null);
+
+    const BASE_W = 640, FULL_H = 230, THIN_H = 54, GAP = 10, PAD_X = 30;
+    const targetLayer = buildFloorLayer(tLayout, h.no, findRoomAnchor(tLayout, h.no), tAnchorName, BASE_W);
+    if (!targetLayer) return { svg: '<div class="tip">층 배치 정보가 부족해요.</div>', matched: null, wantElev: wantElev, usedFallbackStair: false };
+    const tsx = (tAnchorName && targetLayer.anchorX[tAnchorName] != null) ? targetLayer.anchorX[tAnchorName] : targetLayer.doorX;
+
+    let entranceLayer = null, dxEntrance = 0, dxTarget = PAD_X, W = BASE_W + PAD_X * 2, riserX = tsx + PAD_X;
+    if (gLayout) {
+      const gAnchorName = matched ? matched.name : (gStairs[0] ? gStairs[0].name : null);
+      entranceLayer = buildFloorLayer(gLayout, null, null, gAnchorName, BASE_W);
+      if (entranceLayer) {
+        const esx = (gAnchorName && entranceLayer.anchorX[gAnchorName] != null) ? entranceLayer.anchorX[gAnchorName] : entranceLayer.doorX;
+        // target 행은 제자리에 두고, entrance 행만 계단 위치가 일치하도록 좌우로 민 뒤, 두 행이 전부
+        // 들어오도록 캔버스 폭(W)과 공통 왼쪽 여백(leftShift)을 계산한다.
+        const dxEntranceRaw = tsx - esx;
+        const spanMinX = Math.min(0, dxEntranceRaw), spanMaxX = Math.max(BASE_W, BASE_W + dxEntranceRaw);
+        const leftShift = PAD_X - spanMinX;
+        W = (spanMaxX - spanMinX) + PAD_X * 2;
+        dxEntrance = dxEntranceRaw + leftShift; dxTarget = leftShift;
+        riserX = tsx + dxTarget;
+      }
+    }
+
+    const entranceFloor = 1, targetFloor = Number(target.floor);
+    const lo = Math.min(entranceFloor, targetFloor), hi = Math.max(entranceFloor, targetFloor);
+    const rows = [];
+    for (let f = lo; f <= hi; f++) rows.push({ floor: f, kind: f === entranceFloor ? 'entrance' : (f === targetFloor ? 'target' : 'blank') });
+    rows.sort((a, b) => b.floor - a.floor);   // 높은 층이 위, 낮은 층이 아래로 보이게
+
+    let totalH = 0;
+    rows.forEach(r => { r.rh = (r.kind === 'blank' || (r.kind === 'entrance' && !entranceLayer)) ? THIN_H : FULL_H; r.y0 = totalH; totalH += r.rh + GAP; });
+    totalH -= GAP;
+
+    let inner = '';
+    let entranceGlobal = null, targetGlobal = null;
+    rows.forEach(r => {
+      if (r.kind === 'blank' || (r.kind === 'entrance' && !entranceLayer)) {
+        const by = r.y0 + r.rh - 16;
+        inner += box3d(Math.max(100, riserX) - 90, by + 6, Math.min(180, W - 40), 8, 8, 'var(--line)', 'var(--card)', 'var(--line)');
+        if (r.kind === 'entrance') {
+          inner += anchorGlyph('door', riserX, by, 18, 'var(--t2)') +
+            '<text x="10" y="' + (by + 4) + '" font-size="11" fill="var(--t2)">1층 정문(조사 전)</text>';
+          entranceGlobal = { doorX: riserX, y: by };
+        } else {
+          inner += '<circle cx="' + riserX + '" cy="' + by + '" r="3.5" fill="var(--t3)"/>' +
+            '<text x="10" y="' + (by + 4) + '" font-size="11" fill="var(--t3)">' + r.floor + '층</text>';
+        }
+        return;
+      }
+      const layer = r.kind === 'entrance' ? entranceLayer : targetLayer;
+      const dx = r.kind === 'entrance' ? dxEntrance : dxTarget;
+      inner += '<g transform="translate(' + dx + ',' + r.y0 + ')">' + layer.g + '</g>';
+      inner += '<text x="10" y="' + (r.y0 + 20) + '" font-size="11" font-weight="700" fill="var(--t2)">' + r.floor + '층</text>';
+      if (r.kind === 'entrance') entranceGlobal = { doorX: entranceLayer.doorX + dx, y: r.y0 + layer.baseY };
+      if (r.kind === 'target') targetGlobal = {
+        y: r.y0 + layer.baseY, y0: r.y0, baseY: layer.baseY,
+        destX: targetLayer.destX != null ? targetLayer.destX + dx : null, destSide: targetLayer.destSide
+      };
+    });
+
+    let navD = '', navEndX = null, navEndY = null;
+    if (entranceGlobal) {
+      navD = 'M ' + entranceGlobal.doorX + ' ' + entranceGlobal.y + ' L ' + riserX + ' ' + entranceGlobal.y +
+             ' L ' + riserX + ' ' + (targetGlobal ? targetGlobal.y : entranceGlobal.y);
+      if (targetGlobal && targetGlobal.destX != null) {
+        const stubY = targetGlobal.destSide === 'T' ? (targetGlobal.baseY - 14 + 6) : (targetGlobal.baseY + 34 - 6);
+        const stubYGlobal = targetGlobal.y0 + stubY;
+        navD += ' L ' + targetGlobal.destX + ' ' + targetGlobal.y + ' L ' + targetGlobal.destX + ' ' + stubYGlobal;
+        navEndX = targetGlobal.destX; navEndY = stubYGlobal;
+      }
+    }
+
+    let svg = '<svg class="floorsvg stack" viewBox="0 0 ' + W + ' ' + totalH + '" preserveAspectRatio="xMidYMid meet" style="height:' + Math.round(totalH * 0.72) + 'px;">' + inner;
+    if (navD) {
+      // 층이 많을수록(동선이 길수록) 더 천천히 그어지게 — 짧은 동선과 체감 속도를 맞춤
+      const drawDelay = 0.4, drawDur = Math.min(6, 2 + rows.length * 0.55);
+      const endDelay = (drawDur + drawDelay).toFixed(2);
+      svg += '<path class="navline" d="' + navD + '" pathLength="100" style="animation-duration:' + drawDur.toFixed(2) + 's;animation-delay:' + drawDelay + 's;"/>';
+      if (navEndX != null) {
+        svg += '<circle class="navend-ring" cx="' + navEndX + '" cy="' + navEndY + '" r="5" style="animation-delay:' + endDelay + 's;"/>';
+        svg += '<circle class="navend" cx="' + navEndX + '" cy="' + navEndY + '" r="5" style="animation-delay:' + endDelay + 's;"/>';
+      }
+    }
+    svg += '</svg>';
+
+    const panelG = gLayout ? buildFloorOutlinePanel(gLayout, matched ? matched.name : (gStairs[0] ? gStairs[0].name : null), '1층 정문') : '';
+    const panelT = buildFloorOutlinePanel(tLayout, tAnchorName, target.floor + '층 ' + h.no + '호');
+    const panels = (panelG || panelT) ? '<div class="minirow">' + panelG + panelT + '</div>' : '';
+
+    return { svg: panels + svg, matched: matched, wantElev: wantElev, usedFallbackStair: usedFallbackStair };
+  }
+
+  // ---------- 등각(isometric) 평면도 쌓기 ----------
+  // 복도를 1차원으로 펼친 기존 도식 대신, 건물 외곽선을 "대각선 위에서 내려다본" 각도로
+  // 투영해서 층마다 같은 각도·같은 좌표계로 겹쳐 쌓고, 1층 정문 → 계단/엘리베이터 → 목적지
+  // 방문 앞까지 안내선을 그림. 목적지 방의 실제 x,y 좌표가 없으면(아직 도면 채팅방에서
+  // 호실 좌표를 안 보내준 층) 이 방식을 쓰지 않고 기존 복도 도식으로 자동 대체됨.
+  const ISO_COS = Math.cos(Math.PI / 6), ISO_SIN = Math.sin(Math.PI / 6);   // 30도
+
+  function canUseIsoStack(layout, destRoomNo) {
+    if (!layout || !layout.outline || layout.outline.length < 3) return false;
+    let found = false;
+    (layout.walks || []).forEach(w => (w.items || []).forEach(it => {
+      if (String(it.no) === String(destRoomNo) && it.x != null && it.y != null) found = true;
+    }));
+    return found;
+  }
+
+  // outline 점들을 기준으로 전체 층에서 공유할 스케일/원점을 한 번만 계산 — 여러 층을 같은
+  // 좌표계·같은 각도로 투영해야 계단 위치가 층마다 같은 화면 x에 정렬됨(도면 채팅방이 같은
+  // 건물의 층들을 같은 원점으로 그려줬다는 전제 — 실제 데이터로 확인됨).
+  function computeIsoFrame(outlineSets, planW) {
+    const PAD = 36;
+    let pts = [];
+    outlineSets.forEach(o => { if (o) pts.push.apply(pts, o); });
+    const rix = pts.map(p => (Number(p[0]) - Number(p[1])) * ISO_COS);
+    const riy = pts.map(p => (Number(p[0]) + Number(p[1])) * ISO_SIN);
+    const minRIX = Math.min.apply(null, rix), maxRIX = Math.max.apply(null, rix);
+    const minRIY = Math.min.apply(null, riy), maxRIY = Math.max.apply(null, riy);
+    const spanRIX = Math.max(1, maxRIX - minRIX), spanRIY = Math.max(1, maxRIY - minRIY);
+    const scale = (planW - PAD * 2) / spanRIX;
+    const originX = PAD - minRIX * scale;
+    return {
+      planH: spanRIY * scale,
+      projX: (x, y) => originX + (Number(x) - Number(y)) * ISO_COS * scale,
+      projYLocal: (x, y) => ((Number(x) + Number(y)) * ISO_SIN - minRIY) * scale
+    };
+  }
+
+  // 층 하나의 평면도를 등각 투영으로 그림 — 외곽선 실루엣 + 계단/엘리베이터/화장실 실제 위치 +
+  // 좌표가 있는 방들(목적지는 초록, 나머지는 회색 점)을 그 자리 그대로 찍음
+  // 같은 walk 안에서 마주보는 두 줄(side: L/R)의 화면상 간격이 너무 좁으면, 각 줄 전체를
+  // 중앙에서 반대 방향으로 똑같이 밀어서 최소 간격을 만들어줌 — 실제 좌표를 바꾸는 게 아니라
+  // "그릴 때"만 보정하는 것이라, 두 줄 평균의 중간(복도 중앙)은 그대로 유지됨.
+  function sideSpreadShift(items, frame) {
+    const withY = (items || []).filter(it => it.y != null);
+    const leftYs = withY.filter(it => it.side === 'L').map(it => Number(it.y));
+    const rightYs = withY.filter(it => it.side === 'R').map(it => Number(it.y));
+    if (!leftYs.length || !rightYs.length) return {};
+    const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const leftAvg = avg(leftYs), rightAvg = avg(rightYs);
+    const scaleY = Math.abs(frame.projYLocal(0, 2) - frame.projYLocal(0, 0)) / 2;
+    if (!(scaleY > 0)) return {};
+    const MIN_GAP = 22; // 마주보는 두 줄 사이 최소 화면 간격(svg 단위)
+    const curGapPx = Math.abs(rightAvg - leftAvg) * scaleY;
+    if (curGapPx >= MIN_GAP) return {};
+    const needModel = (MIN_GAP - curGapPx) / scaleY / 2; // 양쪽에서 절반씩 밀어냄
+    const dir = rightAvg >= leftAvg ? 1 : -1;
+    return { L: -dir * needModel, R: dir * needModel };
+  }
+
+  function buildIsoFloorLayer(layout, frame, rowTop, destRoomNo, highlightAnchorName) {
+    const outline = layout.outline;
+    if (!outline || outline.length < 3) return null;
+    const marginTop = 16;
+    const toScreen = (x, y) => ({ x: frame.projX(x, y), y: rowTop + marginTop + frame.projYLocal(x, y) });
+
+    let g = '';
+    g += '<polygon points="' + outline.map(p => { const s = toScreen(p[0], p[1]); return s.x + ',' + s.y; }).join(' ') +
+         '" fill="var(--field)" stroke="var(--line)" stroke-width="1.6"/>';
+
+    const anchorPt = {};
+    let doorPt = null;
+    (layout.anchors || []).forEach(a => {
+      if (a.x == null || a.y == null) return;
+      const p = toScreen(a.x, a.y);
+      const hl = highlightAnchorName && sameName(a.name, highlightAnchorName);
+      const color = hl ? 'var(--accent)' : (a.type === 'elev' ? 'var(--warn)' : 'var(--t2)');
+      if (a.type === 'stair' || a.type === 'elev') {
+        // 계단/엘리베이터는 층을 "연결하는 구조물"이라 평면도 위에 큰 아이콘으로 그리지 않고,
+        // 뚫린 자리(개구부)만 점선 네모로 표시함 — 실제 입체 연결 모습은 층과 층 사이
+        // 간격(buildVerticalConnector)에서 보여줌.
+        g += '<rect x="' + (p.x - 7) + '" y="' + (p.y - 7) + '" width="14" height="14" rx="2" fill="none" ' +
+             'stroke="' + color + '" stroke-width="' + (hl ? 1.6 : 1.1) + '" stroke-dasharray="2.5,2"/>';
+      } else {
+        g += anchorGlyph(a.type, p.x, p.y + 9, 16, color);
+      }
+      g += '<text x="' + p.x + '" y="' + (p.y - 11) + '" text-anchor="middle" font-size="9" fill="' + color +
+           '" font-weight="' + (hl ? '700' : '500') + '">' + esc(a.name || '') + '</text>';
+      anchorPt[a.name] = p;
+      if (a.type === 'door' && !doorPt) doorPt = p;
+    });
+
+    (layout.restrooms || []).forEach(r => {
+      if (r.x == null || r.y == null) return;
+      const p = toScreen(r.x, r.y);
+      g += '<text x="' + p.x + '" y="' + (p.y + 4) + '" text-anchor="middle" font-size="12">🚻</text>';
+    });
+
+    let destPt = null;
+    (layout.walks || []).forEach(w => {
+      const shift = sideSpreadShift(w.items, frame);
+      (w.items || []).forEach(it => {
+        if (it.x == null || it.y == null) return;
+        const vy = Number(it.y) + (shift[it.side] || 0);
+        const p = toScreen(it.x, vy);
+        const isDest = destRoomNo && String(it.no) === String(destRoomNo);
+        g += '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (isDest ? 5 : 2.6) + '" fill="' +
+             (isDest ? 'var(--ok)' : 'var(--t3)') + '" ' + (isDest ? '' : 'opacity="0.75"') + '/>';
+        g += '<text x="' + p.x + '" y="' + (p.y - (isDest ? 10 : 6)) + '" text-anchor="middle" font-size="' + (isDest ? 10 : 7.5) +
+             '" font-weight="' + (isDest ? '700' : '400') + '" fill="' + (isDest ? 'var(--ok)' : 'var(--t3)') + '">' + esc(it.no) + '</text>';
+        if (isDest) destPt = p;
+      });
+    });
+
+    return { g: g, anchorPt: anchorPt, doorPt: doorPt, destPt: destPt, bottom: rowTop + marginTop + frame.planH };
+  }
+
+  // 출발점(실제 모델 좌표 startX,startY)에서 목적 호실까지 대각선으로 바로 꽂지 않고,
+  // "복도 중앙으로 이동 → 복도를 따라 목적호실 앞까지 → 좌/우회전해서 입실"로 꺾이는 경로
+  // (화면좌표 점들의 배열)를 만들어줌. 복도 중앙은 walk 전체에서 한 번만 계산하는 고정값이
+  // 아니라, x를 따라가며 그때그때 "마주보고 있는 가장 가까운 두 방(역·station)" 사이로
+  // 다시 계산해서 — 계단 바로 앞 방들 사이에서 출발하고, 방 배열이 바뀌면 동선도 그 사이로
+  // 위치를 옮겨가며 이동함. rowTop은 buildIsoFloorLayer에 넘긴 값과 같아야 좌표가 안 어긋남.
+  function corridorApproach(layout, frame, rowTop, startX, startY, destRoomNo, startAnchorName) {
+    // 목적호실은 보통 "계단2 오른쪽"처럼 특정 앵커(계단/엘리베이터)의 walk 안에만 들어있고,
+    // 실제로 올라온 계단(startX,startY / startAnchorName)은 그와 다른 앵커일 수 있음(건물에
+    // 계단이 여럿이고 1층엔 그중 하나만 있어서 항상 같은 계단으로 오르기 때문). 그 경우
+    // 목적호실이 속한 walk만 보고 역(station)을 짜면, 올라온 계단 위치가 전혀 다른 구역이라
+    // 동선이 복도를 벗어나 방 한가운데를 가로지르는 이상한 모양이 됨. 그래서 먼저
+    // destRoomNo가 들어있는 모든 walk 후보를 모아, "실제로 올라온 앵커와 이름이 같은 walk"를
+    // 최우선으로 쓰고(이러면 다리 없이 바로 역 사이로 진입), 없으면 올라온 위치에서 가장
+    // 가까운 앵커의 walk를 골라 그 앵커까지 먼저 직선으로 이동(복도를 가로질러 건너가는
+    // 구간)한 뒤, 그 앵커 기준으로 역 사이를 지나가도록 함.
+    const candidates = [];
+    (layout.walks || []).forEach(w => {
+      (w.items || []).forEach(it => {
+        if (String(it.no) === String(destRoomNo) && it.x != null && it.y != null) {
+          candidates.push({ walk: w, item: it });
+        }
+      });
+    });
+    if (!candidates.length || startX == null || startY == null) return null;
+    const anchorOf = name => (layout.anchors || []).find(a => sameName(a.name, name));
+    const sameAsStart = startAnchorName
+      ? candidates.find(c => sameName(c.walk.anchor, startAnchorName))
+      : null;
+    let chosen = sameAsStart, chosenAnchorObj = sameAsStart ? anchorOf(sameAsStart.walk.anchor) : null;
+    if (!chosen) {
+      let bestD = Infinity;
+      candidates.forEach(c => {
+        const ao = anchorOf(c.walk.anchor);
+        const ax = ao && ao.x != null ? Number(ao.x) : null;
+        const ay = ao && ao.y != null ? Number(ao.y) : null;
+        const d = (ax != null && ay != null) ? Math.hypot(ax - startX, ay - startY) : Infinity;
+        if (d < bestD) { bestD = d; chosen = c; chosenAnchorObj = ao; }
+      });
+    }
+    if (!chosen) chosen = candidates[0];
+    const destItem = chosen.item;
+    const walkItems = chosen.walk.items;
+    // 복도를 건너가는 다리(bridge) 시작점 — 건물 규모에 비해 의미 있게 멀 때만(outline
+    // 가로폭의 일부를 최소 거리로 삼음) 그 앵커 위치까지 먼저 이동한 뒤, 거기서부터
+    // 역 사이를 지나가게 함. door와 바로 옆 계단처럼 같은 자리나 다름없는 survey 오차는
+    // 다리 없이 바로 진입해서 불필요한 꺾임이 생기지 않게 함.
+    const localStartX = (chosenAnchorObj && chosenAnchorObj.x != null) ? Number(chosenAnchorObj.x) : startX;
+    const localStartY = (chosenAnchorObj && chosenAnchorObj.y != null) ? Number(chosenAnchorObj.y) : startY;
+    let bridgeMinDist = 40;
+    if (layout.outline && layout.outline.length >= 3) {
+      const xs = layout.outline.map(p => Number(p[0]));
+      bridgeMinDist = Math.max(40, (Math.max.apply(null, xs) - Math.min.apply(null, xs)) * 0.08);
+    }
+    const needBridge = Math.hypot(localStartX - startX, localStartY - startY) > bridgeMinDist;
+    // 다리 구간은 예전엔 직선으로 추측했지만, 도면/실측으로 두 앵커 사이를 실제로 걸은
+    // connectors 데이터(꺾이는 지점 좌표 포함)가 있으면 그걸 그대로 따라가도록 함.
+    // from/to 방향이 반대로 기록돼 있으면 뒤집어서 startAnchorName 쪽부터 시작하게 맞춤.
+    let bridgePts = null;
+    if (needBridge && startAnchorName && chosenAnchorObj && chosenAnchorObj.name) {
+      const conn = (layout.connectors || []).find(c =>
+        (sameName(c.from, startAnchorName) && sameName(c.to, chosenAnchorObj.name)) ||
+        (sameName(c.to, startAnchorName) && sameName(c.from, chosenAnchorObj.name))
+      );
+      if (conn && conn.points && conn.points.length) {
+        const pts2 = conn.points.filter(p => p.x != null && p.y != null).map(p => ({ x: Number(p.x), y: Number(p.y) }));
+        if (pts2.length) bridgePts = sameName(conn.from, startAnchorName) ? pts2 : pts2.slice().reverse();
+      }
+      // connectors 배열 자체가 있는(=도면조사로 측정된) 층인데 이 쌍만 안 들어있으면,
+      // "실측 결과 연결 안 됨"으로 확정된 것이지 아직 안 재본 게 아님 — 이런 경우는
+      // 직선으로 거리만 보고 추측해서 잇지 않고, 아예 경로를 그리지 않는다(아래에서
+      // null 반환). connectors 필드 자체가 없는 예전(걷기조사) 데이터만 직선으로 보정.
+      if (!bridgePts && Array.isArray(layout.connectors)) return null;
+    }
+    // buildIsoFloorLayer가 화면에 그릴 때 쓰는 것과 같은 보정(sideSpreadShift)을 여기서도
+    // 적용해야, 경로의 마지막 도착점이 실제로 그려진(밀어낸) 호실 점과 정확히 맞물림.
+    const shift = sideSpreadShift(walkItems, frame);
+    const vyOf = it => Number(it.y) + (shift[it.side] || 0);
+    const withXY = walkItems.filter(it => it.x != null && it.y != null);
+    if (!withXY.length) return null;
+
+    let outlineMidY = null;
+    if (layout.outline && layout.outline.length >= 3) {
+      const ys = layout.outline.map(p => Number(p[1]));
+      outlineMidY = (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2;
+    }
+
+    // "역(station)"은 더 이상 좌표만 보고 추측하지 않는다. 도면 파싱 단계에서 받은 pair
+    // 그룹 번호(같은 번호 = 복도를 사이에 두고 마주보는 한 지점)와 items 배열의 실제 동선
+    // 순서를 그대로 믿는다. 좌표(x)로 재정렬하지 않으므로 복도가 꺾이거나 사선이어도
+    // "도면에서 확인한 순서 = 그려지는 순서"가 유지된다. pair가 없는 방(짝 없이 혼자인
+    // 방)은 건물 외곽선 중앙(또는 그마저 없으면 자기 y)을 기준으로 혼자 역이 된다.
+    const stations = [];
+    const stationOfPair = {};
+    withXY.forEach(it => {
+      const pid = it.pair != null ? String(it.pair) : null;
+      if (pid && stationOfPair[pid]) {
+        const st = stationOfPair[pid];
+        const firstIt = st.items[0];
+        st.x = (Number(firstIt.x) + Number(it.x)) / 2;
+        st.y = (vyOf(firstIt) + vyOf(it)) / 2;
+        st.items.push(it);
+        return;
+      }
+      const st = { x: Number(it.x), y: (outlineMidY != null ? outlineMidY : vyOf(it)), items: [it] };
+      stations.push(st);
+      if (pid) stationOfPair[pid] = st;
+    });
+
+    // 화면상 너무 좁게 잡힌 역은 가까운 호실과 최소 간격을 두도록 보정(짝을 못 찾은 역 등).
+    const scaleY = Math.abs(frame.projYLocal(0, 2) - frame.projYLocal(0, 0)) / 2;
+    if (scaleY > 0) {
+      const MIN_GAP = 16, minModelGap = MIN_GAP / scaleY;
+      stations.forEach(st => {
+        if (st.items.length > 1) return; // 짝이 있으면 이미 그 사이 — 보정 불필요
+        const y = vyOf(st.items[0]);
+        const gap = Math.abs(st.y - y) * scaleY;
+        if (gap < MIN_GAP) st.y = st.y >= y ? y + minModelGap : y - minModelGap;
+      });
+    }
+
+    // localStart(목적호실 walk의 앵커) 쪽에서 목적호실의 역까지, items 배열에 등장한
+    // 순서(=stations 배열 순서) 그대로 지나가며 그 사이 사이에서 복도 중앙이 옮겨가도록
+    // 점들을 이어붙인다. 출발 지점(앵커)에서 가장 가까운 역을 시작으로 잡는다.
+    const destX = Number(destItem.x);
+    const di = stations.findIndex(st => st.items.indexOf(destItem) !== -1);
+    let si = 0, bestD = Infinity;
+    stations.forEach((st, i) => {
+      const d = Math.hypot(st.x - localStartX, st.y - localStartY);
+      if (d < bestD) { bestD = d; si = i; }
+    });
+    const seq = [];
+    if (di < 0) { seq.push(stations[si]); }
+    else if (di >= si) { for (let i = si; i <= di; i++) seq.push(stations[i]); }
+    else { for (let i = si; i >= di; i--) seq.push(stations[i]); }
+    if (!seq.length) seq.push(stations[si]);
+
+    const toScr = (mx, my) => ({ x: frame.projX(mx, my), y: rowTop + 16 + frame.projYLocal(mx, my) });
+    const pts = [];
+    // 출발 계단이 목적호실 walk의 앵커와 다른 경우, 그 앵커까지 먼저 건너가는 구간을 넣음.
+    if (needBridge) {
+      if (bridgePts) bridgePts.forEach(p => pts.push(toScr(p.x, p.y)));
+      else pts.push(toScr(startX, startY), toScr(localStartX, localStartY));
+    }
+    pts.push(toScr(localStartX, seq[0].y));
+    seq.forEach(st => pts.push(toScr(st.x, st.y)));
+    pts.push(toScr(destX, seq[seq.length - 1].y));
+    pts.push(toScr(destX, vyOf(destItem)));
+    return pts;
+  }
+
+  // 같은 층 안내(출발점 없이 그 층 안에서만 이동) — 평면도 등각 투영판
+  function buildIsoSingleFloor(layout, destRoomNo, highlightAnchorName) {
+    const PLAN_W = 560;
+    const frame = computeIsoFrame([layout.outline], PLAN_W);
+    const layer = buildIsoFloorLayer(layout, frame, 6, destRoomNo, highlightAnchorName);
+    if (!layer) return null;
+    let svg = '<svg class="floorsvg stack" viewBox="0 0 ' + PLAN_W + ' ' + (layer.bottom + 10) + '" preserveAspectRatio="xMidYMid meet">' + layer.g;
+    const startPt = (highlightAnchorName && layer.anchorPt[highlightAnchorName]) || layer.doorPt;
+    let startModel = null, startAnchorName = null;
+    if (highlightAnchorName) {
+      const hit = (layout.anchors || []).find(a => sameName(a.name, highlightAnchorName));
+      if (hit && hit.x != null && hit.y != null) { startModel = { x: Number(hit.x), y: Number(hit.y) }; startAnchorName = hit.name; }
+    }
+    if (!startModel) {
+      const door = (layout.anchors || []).find(a => a.type === 'door');
+      if (door && door.x != null && door.y != null) { startModel = { x: Number(door.x), y: Number(door.y) }; startAnchorName = door.name; }
+    }
+    if (startPt && layer.destPt) {
+      const corridor = startModel ? corridorApproach(layout, frame, 6, startModel.x, startModel.y, destRoomNo, startAnchorName) : null;
+      const d = (corridor && corridor.length)
+        ? 'M ' + startPt.x + ' ' + startPt.y + corridor.map(p => ' L ' + p.x + ' ' + p.y).join('')
+        : 'M ' + startPt.x + ' ' + startPt.y + ' L ' + layer.destPt.x + ' ' + layer.destPt.y;
+      svg += '<path class="navline" d="' + d + '" pathLength="100"/>';
+      svg += '<circle class="navend-ring" cx="' + layer.destPt.x + '" cy="' + layer.destPt.y + '" r="5"/>';
+      svg += '<circle class="navend" cx="' + layer.destPt.x + '" cy="' + layer.destPt.y + '" r="5"/>';
+    }
+    svg += '</svg>';
+    return svg;
+  }
+
+  // 여러 층 쌓기 — 평면도 등각 투영판. 1층 정문(또는 조사 전 팻말) → 계단/엘리베이터 →
+  // (중간 층 관통) → 목표 층 → 목적지 방 문 앞까지 하나로 이어진 안내선을 그림.
+  // 건물 전체의 꼭대기층까지 모든 층을 쌓아서 보여주되, 외곽선 데이터가 있는 층은 실제
+  // 건물 모양 그대로(목적지가 아니면 방 상세 없이 윤곽+계단/엘리베이터/화장실만), 아직
+  // 외곽선이 없는 층은 얇은 통과용 판으로 표시해서 전체가 "건물처럼" 보이게 함.
+  function buildIsoStack(h, target, tLayout, gLayout, sameBld, floorMap) {
+    const tStairs = (tLayout.anchors || []).filter(a => a.type === 'stair' || a.type === 'elev');
+    const gStairs = gLayout ? (gLayout.anchors || []).filter(a => a.type === 'stair' || a.type === 'elev') : [];
+    const wantElev = Number(target.floor) >= 4;
+    function matchBy(typeFilter) {
+      let m = null;
+      gStairs.filter(a => !typeFilter || a.type === typeFilter).forEach(ga => {
+        tStairs.filter(a => !typeFilter || a.type === typeFilter).forEach(ta => {
+          if (!m && sameName(ga.name, ta.name) && ga.type === ta.type) m = ta;
+        });
+      });
+      return m;
+    }
+    let matched = (gLayout && wantElev) ? matchBy('elev') : null;
+    let usedFallbackStair = !!gLayout && wantElev && !matched;
+    if (gLayout && !matched) matched = matchBy(null);
+    const tElev = tStairs.find(a => a.type === 'elev');
+    const tPreferred = (wantElev && tElev) ? tElev : (tStairs[0] || null);
+    const tAnchorName = matched ? matched.name : (tPreferred ? tPreferred.name : null);
+    const gAnchorName = matched ? matched.name : (gStairs[0] ? gStairs[0].name : null);
+
+    const PLAN_W = 560;
+    const targetFloor = Number(target.floor);
+    const topFloor = Math.max(targetFloor, ...sameBld.map(m => Number(m.floor) || 1));
+    const lo = 1, hi = topFloor;
+
+    const outlineSets = [];
+    for (let f = lo; f <= hi; f++) { const l = floorMap[f]; if (l && l.outline && l.outline.length >= 3) outlineSets.push(l.outline); }
+    const frame = computeIsoFrame(outlineSets.length ? outlineSets : [tLayout.outline], PLAN_W);
+
+    // 각 층을 따로따로 늘어놓지 않고, 실제 건물처럼 층마다 조금씩만 어긋나게(FLOOR_STEP) 겹쳐
+    // 쌓는다 — 위층이 아래층 위에 그대로 포개져서 "건물 사진을 오려 붙인" 느낌이 나게 함.
+    const PLAN_ROW_H = frame.planH + 22, THIN_H = 26;
+    const FLOOR_STEP = Math.max(50, Math.min(130, Math.round(PLAN_ROW_H * 0.42)));
+    const TOP_PAD = 6;
+
+    const floors = [];
+    for (let f = lo; f <= hi; f++) {
+      const layout = floorMap[f];
+      const hasOutline = !!(layout && layout.outline && layout.outline.length >= 3);
+      floors.push({
+        floor: f, kind: f === 1 ? 'entrance' : (f === targetFloor ? 'target' : 'other'),
+        hasOutline: hasOutline, h: hasOutline ? PLAN_ROW_H : THIN_H,
+        y0: TOP_PAD + (hi - f) * FLOOR_STEP
+      });
+    }
+    let totalH = Math.max.apply(null, floors.map(r => r.y0 + r.h)) + 10;
+
+    let entrancePt = null, targetAnchorPt = null, destPt = null, riserX = PLAN_W / 2;
+    const floorRiserPt = {}; // 층 번호 -> 그 층 계단/엘리베이터의 화면 좌표(층간 연결 기준점)
+    const preferElev = wantElev && !usedFallbackStair;
+    // 층 하나에서 목표 층과 같은 이름(없으면 같은 종류)의 계단/엘리베이터 앵커를 찾아줌 —
+    // "계단1"처럼 같은 건물의 각 층이 같은 이름으로 이어진다는 전제(실제 데이터로 확인됨)로,
+    // 모든 층에서 같은 계단을 따라가도록 함.
+    function pickAnchorObj(layoutF) {
+      if (!layoutF) return null;
+      const anchors = layoutF.anchors || [];
+      if (tAnchorName) {
+        const hit = anchors.find(a => sameName(a.name, tAnchorName));
+        if (hit) return hit;
+      }
+      const stairs = anchors.filter(a => a.type === 'stair' || a.type === 'elev');
+      return (preferElev ? (stairs.find(a => a.type === 'elev') || stairs[0]) : (stairs.find(a => a.type === 'stair') || stairs[0])) || null;
+    }
+    function floorRiser(layoutF, anchorPt) {
+      const pick = pickAnchorObj(layoutF);
+      return (pick && anchorPt[pick.name]) || null;
+    }
+    // 목표 층을 먼저 찾아 riserX(계단/엘리베이터의 화면 x)를 계산해둬야, 아직 못 그린 다른
+    // 층들의 얇은 판이나 통과선이 그 x를 기준으로 자리잡을 수 있음.
+    const targetRow = floors.find(r => r.kind === 'target');
+    if (targetRow) {
+      const layer = buildIsoFloorLayer(tLayout, frame, targetRow.y0, h.no, tAnchorName);
+      targetAnchorPt = floorRiser(tLayout, layer.anchorPt) || layer.doorPt;
+      if (targetAnchorPt) riserX = targetAnchorPt.x;
+    }
+
+    // 아래층부터 위층 순서로 그려서(겹침 순서) 위층이 자연스럽게 아래층 위에 포개지게 함.
+    // 라벨(층 이름)은 어느 층 모양에도 가려지지 않도록 전부 모아뒀다가 맨 마지막에 그리고,
+    // 목표 층은 위에 다른 층이 덮어쓸 수 있으니 모든 층을 그린 뒤 한 번 더 맨 위에 그려서
+    // 목적지 방 표시가 절대 가려지지 않게 함.
+    let shapesSvg = '', labelsSvg = '', targetLayerG = '';
+    floors.forEach(r => {
+      if (r.kind === 'target') {
+        const layer = buildIsoFloorLayer(tLayout, frame, r.y0, h.no, tAnchorName);
+        shapesSvg += layer.g;
+        targetLayerG = layer.g;
+        destPt = layer.destPt;
+        floorRiserPt[r.floor] = floorRiser(tLayout, layer.anchorPt) || layer.doorPt || targetAnchorPt;
+        labelsSvg += '<text x="6" y="' + (r.y0 + 12) + '" font-size="11" font-weight="700" fill="var(--t2)">' + r.floor + '층</text>';
+      } else if (r.hasOutline) {
+        const highlight = r.kind === 'entrance' ? gAnchorName : null;
+        const layer = buildIsoFloorLayer(floorMap[r.floor], frame, r.y0, null, highlight);
+        shapesSvg += layer.g;
+        floorRiserPt[r.floor] = floorRiser(floorMap[r.floor], layer.anchorPt);
+        labelsSvg += '<text x="6" y="' + (r.y0 + 12) + '" font-size="11" font-weight="700" fill="var(--t2)">' + r.floor + '층</text>';
+        if (r.kind === 'entrance') entrancePt = layer.doorPt || (gAnchorName && layer.anchorPt[gAnchorName]);
+      } else {
+        const by = r.y0 + r.h / 2;
+        shapesSvg += box3d(riserX - 80, by + 10, 170, 8, 8, 'var(--line)', 'var(--card)', 'var(--line)');
+        floorRiserPt[r.floor] = { x: riserX, y: by };
+        if (r.kind === 'entrance') {
+          labelsSvg += anchorGlyph('door', riserX, by + 4, 18, 'var(--t2)') +
+            '<text x="6" y="' + (by + 4) + '" font-size="11" fill="var(--t2)">1층 정문(조사 전)</text>';
+          entrancePt = { x: riserX, y: by };
+        } else {
+          labelsSvg += '<circle cx="' + riserX + '" cy="' + by + '" r="3.5" fill="var(--t3)"/>' +
+            '<text x="6" y="' + (by + 4) + '" font-size="11" fill="var(--t3)">' + r.floor + '층(미조사)</text>';
+        }
+      }
+    });
+    if (!entrancePt && floorRiserPt[lo]) entrancePt = floorRiserPt[lo];
+
+    // 계단/엘리베이터는 평면도 위가 아니라 "층과 층 사이"마다 따로 입체 구조물로 표시함 —
+    // 1층부터 목표 층까지 한 번에 긴 통로를 세우지 않고, 층 경계마다 끊어서 한 번씩 오르는
+    // 진짜 계단처럼 여러 단으로 보이게 함. 안내선(navD)보다 먼저 그려서 빨간 선이 그 위에
+    // 선명하게 보이게 함. 각 구간의 중심선 좌표(connectorPaths)는 안내선이 그 비탈을 그대로
+    // 따라가도록 따로 보관해둠.
+    let connectorSvg = '';
+    const connectorPaths = {}; // f -> f층~(f+1)층 구간의 중심선 좌표(아래→위)
+    for (let f = lo; f < targetFloor; f++) {
+      const pBot = floorRiserPt[f], pTop = floorRiserPt[f + 1];
+      if (pBot && pTop && pTop.y < pBot.y) {
+        const built = buildVerticalConnector((pBot.x + pTop.x) / 2, pTop.y, pBot.y, preferElev);
+        connectorSvg += built.g;
+        connectorPaths[f] = built.path;
+      }
+    }
+    const inner = shapesSvg + targetLayerG + labelsSvg + connectorSvg;
+
+    // 안내선도 계단 구조물과 똑같은 경로로: 정문 → 1층 계단 앞 → (층마다 계단 비탈을 따라
+    // 꺾이며 위로) → 목표 층 계단 앞 → 복도 중앙 → 복도를 따라 목적호실 앞 → 좌/우회전해서
+    // 입실. 대각선으로 바로 꽂지 않고 실제로 걷는 동선처럼 보이게 함.
+    let navD = '', navEndX = null, navEndY = null;
+    if (entrancePt) {
+      navD = 'M ' + entrancePt.x + ' ' + entrancePt.y;
+      let prev = entrancePt;
+      const first = floorRiserPt[lo];
+      if (first) {
+        navD += ' L ' + first.x + ' ' + prev.y + ' L ' + first.x + ' ' + first.y;
+        prev = first;
+      }
+      for (let f = lo; f < targetFloor; f++) {
+        const path = connectorPaths[f];
+        if (path && path.length) {
+          path.forEach(pt => { navD += ' L ' + pt.x + ' ' + pt.y; });
+          prev = path[path.length - 1];
+        } else {
+          const p = floorRiserPt[f + 1];
+          if (p) { navD += ' L ' + p.x + ' ' + prev.y + ' L ' + p.x + ' ' + p.y; prev = p; }
+        }
+      }
+      const destAnchor = pickAnchorObj(tLayout);
+      const corridor = (destAnchor && destAnchor.x != null && destAnchor.y != null && targetRow)
+        ? corridorApproach(tLayout, frame, targetRow.y0, Number(destAnchor.x), Number(destAnchor.y), h.no, destAnchor.name)
+        : null;
+      if (corridor && corridor.length) {
+        navD += corridor.map(p => ' L ' + p.x + ' ' + p.y).join('');
+        const lastP = corridor[corridor.length - 1];
+        navEndX = lastP.x; navEndY = lastP.y;
+      } else if (destPt) {
+        navD += ' L ' + destPt.x + ' ' + destPt.y;
+        navEndX = destPt.x; navEndY = destPt.y;
+      }
+    }
+
+    let svg = '<svg class="floorsvg stack" viewBox="0 0 ' + PLAN_W + ' ' + totalH + '" preserveAspectRatio="xMidYMid meet">' + inner;
+    if (navD) {
+      const drawDelay = 0.4, drawDur = Math.min(6, 2 + floors.length * 0.55);
+      const endDelay = (drawDur + drawDelay).toFixed(2);
+      svg += '<path class="navline" d="' + navD + '" pathLength="100" style="animation-duration:' + drawDur.toFixed(2) + 's;animation-delay:' + drawDelay + 's;"/>';
+      if (navEndX != null) {
+        svg += '<circle class="navend-ring" cx="' + navEndX + '" cy="' + navEndY + '" r="5" style="animation-delay:' + endDelay + 's;"/>';
+        svg += '<circle class="navend" cx="' + navEndX + '" cy="' + navEndY + '" r="5" style="animation-delay:' + endDelay + 's;"/>';
+      }
+    }
+    svg += '</svg>';
+
+    return { svg: svg, matched: matched, wantElev: wantElev, usedFallbackStair: usedFallbackStair };
+  }
+
+  loadMissions();
+})();
+</script>
+<div style="position:fixed;bottom:4px;right:6px;font-size:10px;opacity:0.35;pointer-events:none;z-index:9999;color:inherit;">페이지 버전: 2610272249</div>
+</body>
+</html>

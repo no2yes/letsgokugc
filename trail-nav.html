@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>다녀봐! 강대강캠! · 태동여지도</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    position: fixed; inset: 0; width: 100%; height: 100%;
+    font-family: 'Malgun Gothic','맑은 고딕',sans-serif; background: #1b1d21; color: #e9e7e2;
+    overflow: hidden; overscroll-behavior: none; touch-action: none;
+  }
+  /* 지도가 화면 밖으로 밀려나가지 않도록 뷰포트에 고정 (모바일 주소창 접힘/당겨서 새로고침 등으로 밀리는 것 방지) */
+  #mapOuter { position: fixed; inset: 0; overflow: hidden; background: #1b1d21; }
+  #mapRotate {
+    position: absolute; top: 50%; left: 50%; width: 200vmax; height: 200vmax;
+    margin-left: -100vmax; margin-top: -100vmax; transform-origin: 50% 50%;
+    /* 방향센서 값이 들어올 때마다(초당 여러 번) 고정된 0.25s 트랜지션을 매번 새로 거니까,
+       애니메이션이 끝나기도 전에 목표값이 계속 바뀌면서 지도가 미세하게 흔들려 보이는 원인이었음.
+       방향 값 자체는 이미 원형평균으로 부드럽게 만들어서 넘어오니, 여기서는 트랜지션 없이 그대로 적용. */
+  }
+  #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+
+  select, button, input { font-family: inherit; font-size: 15px; border-radius: 8px; border: 1px solid #4a4f57; }
+  select { flex: 1; padding: 10px 10px; background: #272a30; color: #e9e7e2; }
+  button { padding: 10px 14px; background: #3f78c8; color: #fff; border: none; font-weight: 700; cursor: pointer; }
+  button:active { background: #4f86d8; }
+  button.secondary { background: #30343b; color: #cdcbc6; }
+  button.small { font-size: 13px; padding: 8px 10px; }
+  .hidden { display: none !important; }
+
+  /* 목적지 검색창: 지도 위에 떠있는 둥근 입력창. 필요할 때만 보이고, 평소엔 위로 스르륵 숨음 */
+  #topBar {
+    position: fixed; left: 12px; right: 12px; z-index: 1000;
+    top: calc(10px + env(safe-area-inset-top));
+    display: flex; gap: 8px; align-items: center;
+    background: rgba(27,29,33,0.92); border-radius: 14px; padding: 8px 10px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    transition: transform 0.35s ease, opacity 0.35s ease;
+  }
+  #topBar select { background: transparent; border: none; font-size: 16px; }
+  #appBrand {
+    font-size: 11px; font-weight: 700; color: #8ab4f8; line-height: 1.2;
+    white-space: nowrap; padding: 0 2px; flex-shrink: 0;
+  }
+  #appBrand .subtitle { display: block; font-size: 9px; font-weight: 400; color: #84827e; margin-top: 2px; }
+  #topBar.slide-hide { transform: translateY(-140%); opacity: 0; pointer-events: none; }
+
+  /* 하단 패널(경로 선택/상태): 역시 떠있는 느낌으로, 평소엔 아래로 스르륵 숨음 */
+  #bottomPanel {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 1000;
+    background: rgba(27,29,33,0.96); padding: 14px 16px calc(14px + env(safe-area-inset-bottom));
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.4);
+    border-radius: 16px 16px 0 0;
+    transition: transform 0.35s ease, opacity 0.35s ease;
+  }
+  #bottomPanel.slide-hide { transform: translateY(140%); opacity: 0; pointer-events: none; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  #status { font-size: 13px; color: #a8a6a1; line-height: 1.6; min-height: 18px; }
+  #status b { color: #8ab4f8; }
+
+  /* 패널을 다시 불러오는 고정 아이콘 버튼 — 항상 떠있음 (패널과 별도로 숨지 않음) */
+  #uiToggleBtn {
+    position: fixed; right: 14px; z-index: 1001;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 50px; height: 50px; border-radius: 50%; padding: 0;
+    font-size: 20px; line-height: 1; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+    transition: bottom 0.35s ease;
+  }
+  #uiToggleBtn.panel-open { bottom: calc(188px + env(safe-area-inset-bottom)); }
+
+  #tokenBar { position: fixed; top: 0; left: 0; right: 0; z-index: 1002; background: #23262b; padding: 10px 12px; display: flex; gap: 8px; }
+  #tokenBar input { flex: 1; padding: 8px 10px; background: #1b1d21; color: #e9e7e2; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-left: 6px; }
+  .badge.gps { background: #28a745; color: #fff; }
+  .badge.nogps { background: #dc3545; color: #fff; }
+  .badge.path { background: #ff9800; color: #1b1d21; }
+  .badge.off { background: #5f6267; color: #fff; }
+  #headingDot {
+    position: fixed; top: 50%; left: 50%; z-index: 999; pointer-events: none;
+    transform: translate(-50%, -140%);
+    font-size: 26px;
+  }
+  #verTag {
+    position: fixed; top: calc(6px + env(safe-area-inset-top)); right: 8px; z-index: 1000; pointer-events: none;
+    font-size: 11px; color: #84827e; background: rgba(27,29,33,0.6); padding: 2px 7px; border-radius: 8px;
+  }
+  #routePicker { margin-bottom: 8px; }
+  #routePicker .routeOpt {
+    display: block; width: 100%; text-align: left; margin-bottom: 6px;
+    background: #272a30; color: #e9e7e2; border: 1px solid #4a4f57; font-weight: 400;
+  }
+  #routePicker .routeOpt b { color: #8ab4f8; }
+  #routePicker .routeOpt:active { background: #323640; }
+</style>
+</head>
+<body>
+
+<div id="tokenBar">
+  <input type="text" id="tokenInput" placeholder="현황판 링크 또는 토큰을 붙여넣으세요">
+  <button onclick="loadWithToken()">불러오기</button>
+</div>
+
+<div id="mapOuter">
+  <div id="mapRotate"><div id="map"></div></div>
+</div>
+<div id="headingDot">🔼</div>
+<div id="verTag">v2.2</div>
+
+<div id="topBar">
+  <div id="appBrand">다녀봐!<br>강대강캠!<span class="subtitle">태동여지도</span></div>
+  <select id="destSelect">
+    <option value="">목적지 검색...</option>
+  </select>
+  <button class="small secondary" id="rotateBtn" onclick="toggleCompass()">방향센서</button>
+</div>
+
+<button id="uiToggleBtn" onclick="toggleUi()" title="메뉴 열기/닫기">☰</button>
+
+<div id="bottomPanel">
+  <div class="row">
+    <button id="trackBtn" onclick="toggleTracking()" style="flex:1;">내 위치 추적 시작</button>
+    <button class="small secondary hidden" id="reRouteBtn" onclick="changeRoute()">경로 변경</button>
+  </div>
+  <div id="routePicker" class="hidden"></div>
+  <div id="status">목적지를 선택하고 "내 위치 추적"을 켜줘. 조사된 길을 따라서만 안내하고, 조사된 길이 없으면 안내하지 않아.</div>
+  <div id="routeDebug" style="font-size:11px;color:#9aa0a6;margin-top:4px;word-break:break-all;"></div>
+</div>
+
+<script>
+  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdFualGxneSbdscvcDxOnIXqqYq2zoK6uZe_c10zog07Cew6F8HUzjNeN7cCnuZ9C0/exec';
+
+  function api(params) {
+    const q = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
+    return fetch(GAS_URL + '?page=api&' + q + '&_=' + Date.now()).then(r => r.json());
+  }
+
+  // 트레일/게이트 코드 → 이름 (Code.gs의 SURVEY_TRAILS / SURVEY_GATES 와 동일)
+  const NAMES = {
+    'N1':'정문',
+    'G1':'사과대 방향 보행로 (정문 쪽)', 'G6':'사과대 방향 보행로 (기숙사 쪽)',
+    'G2':'기숙사 출입로', 'G3':'치과병원 방향 출입로', 'G4':'공대 방향 보행로',
+    'G5':'운동장 방향 보행로 (원룸촌 쪽)', 'G7':'운동장 방향 보행로 (도로 쪽)',
+    'T1':'등산로입구(대학본부 주차장)', 'T2':'등산로입구(해람지)',
+    'T3':'등산로출구(공대방향)', 'T4':'등산로출구(문성고방향)',
+    'T5':'등산로출구(죽헌저수지 중간)', 'T6':'등산로출구(죽헌저수지 물막이)'
+  };
+
+  // 현재 위치가 조사된 길에서 이 거리 안이어야 "그 길 위에 있다"고 판단 (조사 지점 간격이 최대 300m라 여유를 둠)
+  const ON_PATH_MAX_M = 150;
+  const ARRIVED_MAX_M = 15;
+
+  // 출입로(정문/후문 등 G코드, 정문 N1)인지 판단 — 학교 밖에서 조회할 때 "가장 가까운 아무 길
+  // 지점"이 아니라 실제로 걸어 들어갈 수 있는 출입로부터 안내를 시작하기 위해 씀
+  function isGateCode(code) { return /^G\d+$/.test(code) || code === 'N1'; }
+  function nearestGateNode(lat, lng) {
+    let best = null;
+    Object.keys(allNodeCoords || {}).forEach(function(code) {
+      if (!isGateCode(code)) return;
+      const ll = allNodeCoords[code];
+      if (!ll) return;
+      const d = haversine(lat, lng, ll[0], ll[1]);
+      if (!best || d < best.d) best = { code: code, lat: ll[0], lng: ll[1], d: d };
+    });
+    return best;
+  }
+
+  // 서버 압축 경로 문자열 디코딩 (Code.gs walkDecode_ 와 동일 로직)
+  function walkDecode(s) {
+    s = String(s || '');
+    if (!/^-?\d+,-?\d+(,-?\d+)?(;-?\d+,-?\d+(,-?\d+)?)*$/.test(s)) return null;
+    const parts = s.split(';');
+    const f = parts[0].split(',');
+    let la = parseInt(f[0], 10), ln = parseInt(f[1], 10);
+    const hasAlt = f.length > 2;
+    let alt = hasAlt ? parseInt(f[2], 10) : null;
+    const out = [[la / 1e5, ln / 1e5, alt]];
+    for (let i = 1; i < parts.length; i++) {
+      const d = parts[i].split(',');
+      la += parseInt(d[0], 10); ln += parseInt(d[1], 10);
+      if (hasAlt) alt += parseInt(d[2], 10);
+      out.push([la / 1e5, ln / 1e5, alt]);
+    }
+    return out;
+  }
+
+  function haversine(lat1, lng1, lat2, lng2) {
+    const R = 6371000, toRad = d => d * Math.PI / 180;
+    const dLat = toRad(lat2 - lat1), dLng = toRad(lng2 - lng1);
+    const a = Math.sin(dLat/2)**2 + Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+  function bearing(lat1, lng1, lat2, lng2) {
+    const toRad = d => d * Math.PI / 180, toDeg = r => r * 180 / Math.PI;
+    const y = Math.sin(toRad(lng2-lng1)) * Math.cos(toRad(lat2));
+    const x = Math.cos(toRad(lat1))*Math.sin(toRad(lat2)) - Math.sin(toRad(lat1))*Math.cos(toRad(lat2))*Math.cos(toRad(lng2-lng1));
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  }
+  function compass8(deg) {
+    const dirs = ['북','북동','동','남동','남','남서','서','북서'];
+    return dirs[Math.round(deg / 45) % 8];
+  }
+  function pathLength(pts) {
+    let s = 0;
+    for (let i = 1; i < pts.length; i++) s += haversine(pts[i-1][0], pts[i-1][1], pts[i][0], pts[i][1]);
+    return s;
+  }
+  function segSum(pts, i0, i1) { // i0<=i1 구간의 누적 거리
+    let s = 0;
+    for (let i = i0; i < i1; i++) s += haversine(pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]);
+    return s;
+  }
+
+  let map, destCode = '', meMarker = null, watchId = null, destMarker = null;
+  let edges = [], adjacency = {}, pathLinesLayer = null;
+  let allNodeCoords = {}; // 모든 코드(정문/출입로/건물 등)의 좌표 — renderCoords()에서 채워짐, 출입로 탐색에 사용
+  let remainingLine = null, traveledLine = null, traveledTrace = [], connectorLine = null;
+  let compassOn = false;
+  let lockedRoute = null;      // 사용자가 목록/지도에서 고른 경로 하나 (고정) — 이후엔 이 경로 위에서만 진행 상황을 계산
+  let awaitingChoice = false;  // 경로 후보들을 보여주고 선택을 기다리는 중인지
+  let lastPanLatLng = null;    // 지도 흔들림 방지: 아주 작은 위치 변화에는 panTo를 다시 호출하지 않음
+  const PAN_MIN_MOVE_M = 3;
+  let candidateLinesLayer = null; // 경로 후보들을 지도에 색깔별로 미리 그려두는 레이어 — 터치해서 바로 고를 수 있음
+  // 후보 경로마다 다른 색을 줘서 지도에서/목록에서 같은 경로임을 한눈에 알 수 있게 함
+  const ROUTE_COLORS = ['#42a5f5', '#ab47bc', '#26c6da', '#ffa726', '#9ccc65'];
+
+  function initMap() {
+    map = L.map('map', { zoomControl: true, attributionControl: true }).setView([37.7720, 128.8660], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap contributors', maxZoom: 19
+    }).addTo(map);
+    pathLinesLayer = L.layerGroup().addTo(map);
+    candidateLinesLayer = L.layerGroup().addTo(map);
+  }
+
+  function clearCandidateLines() {
+    if (candidateLinesLayer) candidateLinesLayer.clearLayers();
+  }
+
+  function extractToken(raw) {
+    raw = (raw || '').trim();
+    const m = raw.match(/[?&]t=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : raw;
+  }
+
+  function loadWithToken() {
+    const t = extractToken(document.getElementById('tokenInput').value);
+    if (!t) { setStatus('토큰 또는 현황판 링크를 입력해줘.'); return; }
+    localStorage.setItem('trailnav_token', t);
+    setStatus('불러오는 중...');
+    api({ action: 'buildingcoords', t: t }).then(function(res) {
+      if (!res || !res.success) {
+        setStatus('불러오기 실패: ' + ((res && res.message) || '유효하지 않은 토큰'));
+        return;
+      }
+      document.getElementById('tokenBar').classList.add('hidden');
+      buildGraph(res.paths || []);
+      renderCoords(res.coords || {});
+      drawAllPaths();
+      setStatus('지도를 불러왔어 (기록된 길 ' + edges.length + '개). 목적지를 선택해줘.');
+    }).catch(function() {
+      setStatus('서버 연결에 실패했어. 잠시 후 다시 시도해줘.');
+    });
+  }
+
+  // 지점을 찍을 좌표가 없어도(정문 샘플 3회 미만 등) 기록된 길의 끝점에 등장하면
+  // 그 길의 끝 좌표를 그대로 마커 위치로 써서 목적지 목록에 올려준다.
+  function edgeFallbackCoord(code) {
+    for (let i = 0; i < edges.length; i++) {
+      const e = edges[i];
+      if (e.from === code) return [e.pts[0][0], e.pts[0][1]];
+      if (e.to === code) return [e.pts[e.pts.length - 1][0], e.pts[e.pts.length - 1][1]];
+    }
+    return null;
+  }
+
+  function renderCoords(coords) {
+    const sel = document.getElementById('destSelect');
+    const bounds = [];
+    const allCoords = Object.assign({}, coords);
+    const codes = Object.keys(coords);
+    Object.keys(adjacency || {}).forEach(function(code) {
+      // '~X'로 시작하는 코드는 서로 다른 길을 교차점에서 이어주려고 만든 내부용 가상 노드라서
+      // 사용자가 고를 목적지 목록에는 올리지 않음
+      // '~'로 시작하는 코드는 전부 내부용 임시/가상 노드(교차 접점 ~X, 경로조회용 임시 도착점 ~DEST
+      // 등)라서 사용자가 고를 목적지 목록에는 올리지 않음
+      if (!coords[code] && code.indexOf('~') !== 0) codes.push(code);
+    });
+    codes.forEach(function(code) {
+      let ll = coords[code];
+      let surveyed = !!(ll && ll.length >= 2);
+      if (!surveyed) {
+        ll = edgeFallbackCoord(code);
+        if (!ll) return;
+      }
+      bounds.push(ll);
+      allCoords[code] = ll;
+      const name = NAMES[code] || code;
+      const isTrail = /^T\d/.test(code);
+      L.circleMarker(ll, {
+        radius: surveyed ? 7 : 5,
+        color: isTrail ? '#f3d98d' : '#8ab4f8', weight: 2,
+        fillColor: isTrail ? '#f3d98d' : '#8ab4f8',
+        fillOpacity: surveyed ? 0.85 : 0.4,
+        dashArray: surveyed ? null : '2,3'
+      }).addTo(map).bindPopup(name + ' (' + code + ')' + (surveyed ? '' : ' - 정문 좌표 미확정, 경로 끝점 기준'));
+
+      const opt = document.createElement('option');
+      opt.value = code;
+      opt.textContent = name + (isTrail ? ' [등산로]' : '') + (surveyed ? '' : ' (미확정)');
+      sel.appendChild(opt);
+    });
+    if (bounds.length) map.fitBounds(bounds, { padding: [30, 30] });
+    allNodeCoords = allCoords;
+    sel.setAttribute('data-coords', JSON.stringify(allCoords));
+  }
+
+  // 측량 중 GPS 오차나 "갔다가 되돌아온" 구간 때문에, 기록된 길 하나 안에 지그재그/고리 모양이
+  // 생기는 경우가 있음 (건물 근처 멀티패스 반사 등으로 흔함). 그대로 쓰면 최단경로 알고리즘이
+  // 아무리 최적이어도 그 노이즈 구간까지 "실제 거리"로 집계되고 화면에도 지그재그로 그려짐.
+  // 그래서 각 길을 그래프에 넣기 전에, "앞으로 갔다가 거의 같은 자리로 돌아온" 구간을 통째로
+  // 잘라내서 더 짧고 깨끗한 직선에 가까운 경로로 정리함 (시작/끝 점은 노드 좌표라 그대로 둠).
+  const LOOP_SNIP_M = 12;
+  function removeBacktrackLoops(pts) {
+    if (!pts || pts.length < 3) return pts;
+    const out = [pts[0]];
+    let i = 0;
+    while (i < pts.length - 1) {
+      let next = i + 1;
+      for (let k = pts.length - 1; k > i + 1; k--) {
+        if (haversine(pts[i][0], pts[i][1], pts[k][0], pts[k][1]) <= LOOP_SNIP_M) {
+          next = k;
+          break;
+        }
+      }
+      out.push(pts[next]);
+      i = next;
+    }
+    return out;
+  }
+
+  // 서로 다른 두 길이 "코드로 연결된 노드"를 공유하지 않아도, 실제로는 지도 위에서 거의 만나거나
+  // 교차하는 경우가 있음 (예: 건물 출입로가 보도와 만나는 지점인데 그 지점 자체엔 조사 코드가 없는 경우).
+  // 이런 경우 그래프에는 연결고리가 없어서, 최단경로가 그 교차점을 바로 못 쓰고 멀리 떨어진
+  // "코드가 있는" 노드까지 갔다가 되돌아오는 식으로 돌아감. 그래서 실제로 가까이서 만나는 지점을
+  // 찾아 가상의 연결 노드(~X0, ~X1, ...)를 만들어 그 자리에서 바로 갈아탈 수 있게 해줌.
+  const CROSS_LINK_MAX_M = 10; // 이 거리 안에서 서로 다른 두 길이 만나면 "연결된 것"으로 봄
+  function edgeBounds(pts, padM) {
+    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    pts.forEach(function(p) {
+      if (p[0] < minLat) minLat = p[0];
+      if (p[0] > maxLat) maxLat = p[0];
+      if (p[1] < minLng) minLng = p[1];
+      if (p[1] > maxLng) maxLng = p[1];
+    });
+    const padDeg = padM / 111320; // 위도 기준 근사 — 패딩 용도라 약간 넉넉해도 무방
+    return { minLat: minLat - padDeg, maxLat: maxLat + padDeg, minLng: minLng - padDeg, maxLng: maxLng + padDeg };
+  }
+  function boundsOverlap(a, b) {
+    return a.minLat <= b.maxLat && a.maxLat >= b.minLat && a.minLng <= b.maxLng && a.maxLng >= b.minLng;
+  }
+
+  function linkCrossingEdges(rawEdgeList) {
+    const splitsAt = rawEdgeList.map(function(){ return []; });
+    let vCounter = 0;
+
+    for (let i = 0; i < rawEdgeList.length; i++) {
+      const ei = rawEdgeList[i];
+      const bi = edgeBounds(ei.pts, CROSS_LINK_MAX_M);
+      for (let j = i + 1; j < rawEdgeList.length; j++) {
+        const ej = rawEdgeList[j];
+        // 이미 코드로 연결돼 있으면(같은 노드를 공유) 따로 가상 연결을 만들 필요 없음
+        if (ei.from === ej.from || ei.from === ej.to || ei.to === ej.from || ei.to === ej.to) continue;
+        if (!boundsOverlap(bi, edgeBounds(ej.pts, 0))) continue;
+
+        let best = null;
+        for (let a = 0; a < ei.pts.length; a++) {
+          for (let c = 0; c < ej.pts.length; c++) {
+            const d = haversine(ei.pts[a][0], ei.pts[a][1], ej.pts[c][0], ej.pts[c][1]);
+            if (!best || d < best.d) best = { d: d, a: a, c: c };
+          }
+        }
+        if (!best || best.d > CROSS_LINK_MAX_M) continue;
+        // 두 길 다 "끝점끼리" 만난 거면 이미 사실상 같은 지점이니 코드 연결이 따로 있을 것 — 가상 노드 불필요
+        const endA = (best.a === 0 || best.a === ei.pts.length - 1);
+        const endC = (best.c === 0 || best.c === ej.pts.length - 1);
+        if (endA && endC) continue;
+
+        // 만나는 지점이 한쪽 길의 "끝점"과 정확히 겹치는 경우엔 그 끝점의 기존 코드를
+        // 그대로 접점으로 써야 함 (새 가상 노드를 만들면 그 끝점과 연결이 안 되고 따로 떠버림).
+        // 양쪽 다 중간 지점일 때만 새 가상 노드(~X0, ~X1, ...)를 만듦.
+        // anchor: 접점으로 쓸 실제 좌표 — 두 길의 "가장 가까운 지점"이 서로 몇 m씩 어긋나 있을 수
+        // 있는데(같은 코드로 조사된 게 아니라서), 그걸 그대로 쓰면 지도에 접점에서 살짝 꺾이는
+        // 자국(지그재그)이 남아서 "다른 곳을 거쳐가는 것처럼" 보임. 양쪽 길의 끝점을 전부 이
+        // anchor 좌표로 맞춰서, 접점에서 매끄럽게 하나로 이어지도록 함.
+        let vCode, anchor;
+        if (endA) {
+          vCode = (best.a === 0) ? ei.from : ei.to;
+          anchor = ei.pts[best.a];
+        } else if (endC) {
+          vCode = (best.c === 0) ? ej.from : ej.to;
+          anchor = ej.pts[best.c];
+        } else {
+          vCode = '~X' + (vCounter++);
+          anchor = [(ei.pts[best.a][0] + ej.pts[best.c][0]) / 2, (ei.pts[best.a][1] + ej.pts[best.c][1]) / 2, null];
+        }
+        splitsAt[i].push({ idx: best.a, code: vCode, anchor: anchor });
+        splitsAt[j].push({ idx: best.c, code: vCode, anchor: anchor });
+      }
+    }
+
+    const out = [];
+    rawEdgeList.forEach(function(e, i) {
+      const cuts = splitsAt[i].slice().sort(function(x, y){ return x.idx - y.idx; })
+        .filter(function(c){ return c.idx > 0 && c.idx < e.pts.length - 1; });
+      if (!cuts.length) { out.push(e); return; }
+
+      let startIdx = 0, startCode = e.from, startAnchor = null;
+      cuts.forEach(function(c) {
+        if (c.idx <= startIdx) return; // 너무 가까운 중복 절단 방지
+        const segPts = e.pts.slice(startIdx, c.idx + 1).slice();
+        if (startAnchor) segPts[0] = startAnchor; // 이전 접점과 정확히 같은 좌표로 시작
+        segPts[segPts.length - 1] = c.anchor; // 접점 좌표로 정확히 맞춤 (지그재그 방지)
+        out.push({ from: startCode, to: c.code, pts: segPts, length: pathLength(segPts) });
+        startIdx = c.idx; startCode = c.code; startAnchor = c.anchor;
+      });
+      const tailPts = e.pts.slice(startIdx).slice();
+      if (startAnchor) tailPts[0] = startAnchor;
+      out.push({ from: startCode, to: e.to, pts: tailPts, length: pathLength(tailPts) });
+    });
+    return out;
+  }
+
+  // 서버가 준 {from, to, path} 목록 → 그래프(노드=조사 코드, 엣지=기록된 길)로 변환
+  // 조사된 길만 연결해서 다닐 수 있고, 지름길(직선) 연결은 절대 만들지 않음
+  function buildGraph(rawEdges) {
+    edges = rawEdges.map(function(e) {
+      let pts = walkDecode(e && e.path);
+      if (!pts || pts.length < 2) return null;
+      pts = removeBacktrackLoops(pts);
+      const from = String((e && e.from) || '').trim().toUpperCase();
+      const to = String((e && e.to) || '').trim().toUpperCase();
+      return { from: from, to: to, pts: pts, length: pathLength(pts) };
+    }).filter(Boolean);
+
+    edges = linkCrossingEdges(edges);
+
+    adjacency = {};
+    edges.forEach(function(e, i) {
+      if (e.from && e.from !== '-') {
+        (adjacency[e.from] = adjacency[e.from] || []).push({ edgeIdx: i, node: e.to });
+      }
+      if (e.to && e.to !== '-') {
+        (adjacency[e.to] = adjacency[e.to] || []).push({ edgeIdx: i, node: e.from });
+      }
+    });
+  }
+
+  function drawAllPaths() {
+    pathLinesLayer.clearLayers();
+    edges.forEach(function(e) {
+      L.polyline(e.pts.map(function(p){ return [p[0], p[1]]; }), { color: '#b5e8c4', weight: 4, opacity: 0.55 }).addTo(pathLinesLayer);
+    });
+  }
+
+  function clearRouteLines() {
+    if (remainingLine) { map.removeLayer(remainingLine); remainingLine = null; }
+    if (traveledLine) { map.removeLayer(traveledLine); traveledLine = null; }
+    if (connectorLine) { map.removeLayer(connectorLine); connectorLine = null; }
+    traveledTrace = [];
+  }
+
+  document.getElementById('destSelect').addEventListener('change', function() {
+    const code = this.value;
+    const coords = JSON.parse(this.getAttribute('data-coords') || '{}');
+    if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+    clearRouteLines();
+    resetRouteChoice();
+    destCode = code;
+    if (!code) return;
+    const ll = coords[code];
+    if (ll) {
+      destMarker = L.circleMarker(ll, { radius: 9, color: '#f6b5ae', weight: 3, fillColor: '#dc3545', fillOpacity: 0.9 })
+        .addTo(map).bindPopup('목적지: ' + (NAMES[code] || code)).openPopup();
+      map.panTo(ll);
+    }
+    if (!ll) {
+      // 이제는 코드로 바로 연결된 길이 없어도(adjacency 없음) 목적지 좌표 근처 아무 길의
+      // 지점에서나 도착할 수 있도록 찾아보니, 좌표 자체가 없는 경우에만 안내 불가로 처리함
+      setStatus('목적지: <b>' + (NAMES[code] || code) + '</b><br>이 목적지의 좌표를 아직 몰라 — 안내할 수 없어.');
+    } else if (watchId) {
+      requestRouteChoiceIfReady(true);
+    } else {
+      setStatus('목적지: <b>' + (NAMES[code] || code) + '</b> — "내 위치 추적"을 눌러줘. 위치를 확인하면 고를 수 있는 경로들을 보여줄게.');
+    }
+  });
+
+  // 진행 중인 경로 선택/고정 상태를 모두 초기화 (목적지 변경, 경로 변경 버튼, 경로 이탈 시 사용)
+  function resetRouteChoice() {
+    lockedRoute = null;
+    awaitingChoice = false;
+    waitingForFixSince = null;
+    clearCandidateLines();
+    document.getElementById('routePicker').classList.add('hidden');
+    document.getElementById('routePicker').innerHTML = '';
+    document.getElementById('reRouteBtn').classList.add('hidden');
+    const dbg = document.getElementById('routeDebug');
+    if (dbg) dbg.innerHTML = '';
+  }
+
+  // 점 하나를 선분(a-b) 위로 투영 (평면근사 — 짧은 거리라 충분히 정확함)
+  function projectOnSegment(lat, lng, aLat, aLng, bLat, bLng) {
+    const latRef = (aLat + bLat) / 2;
+    const mLat = 111320, mLng = 111320 * Math.cos(latRef * Math.PI / 180);
+    const ax = 0, ay = 0;
+    const bx = (bLng - aLng) * mLng, by = (bLat - aLat) * mLat;
+    const px = (lng - aLng) * mLng, py = (lat - aLat) * mLat;
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 > 0 ? ((px - ax) * dx + (py - ay) * dy) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const pLat = aLat + t * (bLat - aLat), pLng = aLng + t * (bLng - aLng);
+    return { lat: pLat, lng: pLng, t: t, dist: haversine(lat, lng, pLat, pLng) };
+  }
+
+  // 현재 위치에서 가장 가까운 "조사된 길 위의 지점"을 선분 투영으로 찾음 (꼭짓점 사이 중간에 있어도 정확하게 그 길 위로 스냅)
+  function nearestPointOnNetwork(lat, lng) {
+    let best = null;
+    edges.forEach(function(e, ei) {
+      for (let vi = 0; vi < e.pts.length - 1; vi++) {
+        const a = e.pts[vi], b = e.pts[vi + 1];
+        const proj = projectOnSegment(lat, lng, a[0], a[1], b[0], b[1]);
+        if (!best || proj.dist < best.dist) {
+          best = { edgeIdx: ei, segIdx: vi, t: proj.t, lat: proj.lat, lng: proj.lng, dist: proj.dist };
+        }
+      }
+    });
+    return best;
+  }
+
+  // 그래프(노드=조사 코드)에서 다익스트라로 가장 짧은 "조사된 길들의 조합"을 찾음 — 직선 지름길은 절대 쓰지 않음
+  function shortestNodePath(seeds, target) {
+    const dist = {}, prev = {}, prevEdge = {}, visited = {};
+    const pq = seeds.map(function(s){ return { node: s.node, cost: s.cost }; });
+    seeds.forEach(function(s) {
+      if (dist[s.node] === undefined || s.cost < dist[s.node]) dist[s.node] = s.cost;
+    });
+    while (pq.length) {
+      let bi = 0;
+      for (let i = 1; i < pq.length; i++) if (pq[i].cost < pq[bi].cost) bi = i;
+      const cur = pq.splice(bi, 1)[0];
+      if (visited[cur.node]) continue;
+      if (dist[cur.node] !== undefined && cur.cost > dist[cur.node] + 1e-6) continue;
+      visited[cur.node] = true;
+      if (cur.node === target) break;
+      (adjacency[cur.node] || []).forEach(function(adj) {
+        const nd = cur.cost + edges[adj.edgeIdx].length;
+        if (dist[adj.node] === undefined || nd < dist[adj.node]) {
+          dist[adj.node] = nd;
+          prev[adj.node] = cur.node;
+          prevEdge[adj.node] = adj.edgeIdx;
+          pq.push({ node: adj.node, cost: nd });
+        }
+      });
+    }
+    if (dist[target] === undefined) return null;
+    const seq = [];
+    let node = target;
+    while (prev[node] !== undefined) {
+      seq.unshift({ edgeIdx: prevEdge[node], from: prev[node], to: node });
+      node = prev[node];
+    }
+    return { startNode: node, seq: seq, total: dist[target] };
+  }
+
+  // 현재 위치 → 목적지까지, 조사된 길만 이어서 만든 전체 좌표 목록을 매번 새로 계산 (갈림길에서 다른 조사된 길을 타면 자동으로 다시 계산됨)
+  // loc은 nearestPointOnNetwork()의 결과(없으면 새로 계산) — 마커 스냅과 같은 지점을 재사용해서 일관되게 보이도록 함
+  // 산책로 조사구간(입구·출구) 밖으로 벗어났을 때도 포기하지 않고, 가장 가까운 조사구간까지는
+  // 짧은 직선(연결선, 점선으로 구분)으로 돌아가는 것으로 보고, 그 다음부터는 조사된 길만 따라 최단거리로 안내
+  function computeRoute(lat, lng, dest, loc) {
+    if (!edges.length) return { noData: true };
+    if (loc === undefined) loc = nearestPointOnNetwork(lat, lng);
+    if (!loc) return { noRoute: true };
+    const offNetwork = loc.dist > ON_PATH_MAX_M;
+
+    const e = edges[loc.edgeIdx];
+    const a = e.pts[loc.segIdx], b = e.pts[loc.segIdx + 1];
+    const toLL = function(p){ return [p[0], p[1]]; };
+    const costToFrom = segSum(e.pts, 0, loc.segIdx) + haversine(loc.lat, loc.lng, a[0], a[1]);
+    const costToTo = haversine(loc.lat, loc.lng, b[0], b[1]) + segSum(e.pts, loc.segIdx + 1, e.pts.length - 1);
+    const seeds = [];
+    if (e.from) seeds.push({ node: e.from, cost: costToFrom });
+    if (e.to) seeds.push({ node: e.to, cost: costToTo });
+    if (!seeds.length) return { noRoute: true };
+
+    const result = shortestNodePath(seeds, dest);
+    if (!result) return { noRoute: true };
+
+    let points;
+    if (result.startNode === e.to) {
+      points = [[loc.lat, loc.lng]].concat(e.pts.slice(loc.segIdx + 1).map(toLL));
+    } else {
+      points = [[loc.lat, loc.lng]].concat(e.pts.slice(0, loc.segIdx + 1).map(toLL).reverse());
+    }
+    result.seq.forEach(function(step) {
+      const edge = edges[step.edgeIdx];
+      const forward = (step.from === edge.from);
+      const segPts = (forward ? edge.pts : edge.pts.slice().reverse()).map(toLL);
+      points = points.concat(segPts.slice(1));
+    });
+
+    let connector = null, total = result.total;
+    if (offNetwork) {
+      connector = [[lat, lng], [loc.lat, loc.lng]];
+      total += loc.dist;
+    }
+    return { points: points, connector: connector, total: total, offNetwork: offNetwork };
+  }
+
+  // 현재 위치 → 목적지까지 가능한 "조사된 길 조합"을 전부 찾아서(단순 경로만, 같은 지점 재방문 금지) 거리순으로 정리.
+  // 갈림길이 있으면 여러 개가 나오고, 갈림길이 없으면 1개만 나옴 — 어느 쪽이든 사용자가 직접 골라야 그 경로로 "고정"됨.
+  // 출발지는 이미 nearestPointOnNetwork로 "아무 길 위의 지점"에서나 바로 시작할 수 있었음.
+  // 목적지도 똑같이 — 꼭 코드로 저장된 끝점이 아니어도, 목적지 좌표에서 가장 가까운 길 위의
+  // 지점이 있으면 그 지점을 거쳐 그 지점에서 바로 "도착"할 수 있도록, 그 길을 그 지점에서
+  // 잠깐 쪼개서(임시 접점 ~DEST) 찾아보고, 탐색이 끝나면 다시 원래대로 되돌림(다른 목적지
+  // 조회에 영향 안 주도록). 이미 코드로 연결돼 있어도, 혹시 다른 길이 더 가까이 지나가면
+  // 그쪽도 같이 후보에 들어가서 — 둘 중 짧은 쪽이 자연스럽게 선택됨.
+  // 목적지 코드 자신의 길(들)은 빼고, "그 외의 길들" 중에서 목적지 좌표와 가장 가까운 지점을 찾음.
+  // (목적지가 edgeFallbackCoord로 좌표를 받은 "미확정" 코드면, 그 좌표 자체가 이미 자기 자신의
+  // edge 끝점과 거리 0으로 정확히 일치하기 때문에, 그냥 nearestPointOnNetwork를 쓰면 매번 "자기
+  // 자신"만 찾아져서 다른 길과의 연결을 절대 못 찾음 — 그래서 자기 자신의 edge는 제외하고 찾아야 함)
+  function nearestPointExcludingCode(lat, lng, excludeCode) {
+    let best = null;
+    edges.forEach(function(e, ei) {
+      if (e.from === excludeCode || e.to === excludeCode) return;
+      for (let vi = 0; vi < e.pts.length - 1; vi++) {
+        const a = e.pts[vi], b = e.pts[vi + 1];
+        const proj = projectOnSegment(lat, lng, a[0], a[1], b[0], b[1]);
+        if (!best || proj.dist < best.dist) {
+          best = { edgeIdx: ei, segIdx: vi, t: proj.t, lat: proj.lat, lng: proj.lng, dist: proj.dist };
+        }
+      }
+    });
+    return best;
+  }
+
+  // 목적지 좌표가 실제로 "그 길 위에" 있다고 볼 수 있는 최대 거리. 이보다 멀면 그냥 가장 가까운
+  // 다른 edge일 뿐이지, 그 지점이 목적지는 아님 — 거길 억지로 이어버리면 조사되지 않은 벌판을
+  // 가로지르는 직선 "지름길"이 생겨버려서 오히려 이상한 경로가 됨.
+  const DEST_SNAP_MAX_M = 15;
+
+  const TEMP_DEST_CODE = '~DEST';
+  function withTempDestSplit(destCoord, excludeCode, fn) {
+    if (!destCoord) return fn(null);
+    const near = nearestPointExcludingCode(destCoord[0], destCoord[1], excludeCode);
+    if (!near || near.dist > DEST_SNAP_MAX_M) return fn(null);
+
+    const e = edges[near.edgeIdx];
+    const cutPts = e.pts.slice(0, near.segIdx + 1).concat([[near.lat, near.lng, null]]);
+    const tailPts = [[near.lat, near.lng, null]].concat(e.pts.slice(near.segIdx + 1));
+    const e1 = { from: e.from, to: TEMP_DEST_CODE, pts: cutPts, length: pathLength(cutPts) };
+    const e2 = { from: TEMP_DEST_CODE, to: e.to, pts: tailPts, length: pathLength(tailPts) };
+
+    const origLen = edges.length;
+    const savedFrom = adjacency[e.from] ? adjacency[e.from].slice() : undefined;
+    const savedTo = adjacency[e.to] ? adjacency[e.to].slice() : undefined;
+    const savedTemp = adjacency[TEMP_DEST_CODE] ? adjacency[TEMP_DEST_CODE].slice() : undefined;
+
+    edges.push(e1, e2);
+    const idx1 = origLen, idx2 = origLen + 1;
+    adjacency[e.from] = (savedFrom || []).concat([{ edgeIdx: idx1, node: TEMP_DEST_CODE }]);
+    adjacency[e.to] = (savedTo || []).concat([{ edgeIdx: idx2, node: TEMP_DEST_CODE }]);
+    adjacency[TEMP_DEST_CODE] = (savedTemp || []).concat([
+      { edgeIdx: idx1, node: e.from }, { edgeIdx: idx2, node: e.to }
+    ]);
+
+    near.destLat = destCoord[0];
+    near.destLng = destCoord[1];
+    try {
+      return fn(near);
+    } finally {
+      edges.length = origLen;
+      if (savedFrom === undefined) delete adjacency[e.from]; else adjacency[e.from] = savedFrom;
+      if (savedTo === undefined) delete adjacency[e.to]; else adjacency[e.to] = savedTo;
+      if (savedTemp === undefined) delete adjacency[TEMP_DEST_CODE]; else adjacency[TEMP_DEST_CODE] = savedTemp;
+    }
+  }
+
+  function findCandidateRoutes(lat, lng, dest, maxCount) {
+    return withTempDestSplit(allNodeCoords[dest], dest, function(destNear) {
+      return findCandidateRoutesCore(lat, lng, dest, maxCount, destNear);
+    });
+  }
+
+  function findCandidateRoutesCore(lat, lng, dest, maxCount, destNear) {
+    maxCount = maxCount || 4;
+    if (!edges.length) return { noData: true };
+    const loc = nearestPointOnNetwork(lat, lng);
+    if (!loc) return { noRoute: true };
+    const offNetwork = loc.dist > ON_PATH_MAX_M;
+    const toLL = function(p){ return [p[0], p[1]]; };
+
+    // 학교 밖처럼 조사된 길에서 많이 벗어난 곳이면, 그냥 지리적으로 가장 가까운 "길 위의 아무
+    // 지점"(등산로 중간 등 실제로는 바로 걸어 들어갈 수 없는 곳)으로 직선을 그어버리면 이상한
+    // 경로처럼 보임. 이럴 땐 가장 가까운 출입로(정문/후문 등 G코드, N1)를 먼저 찾아서 거기까지만
+    // 직선 점선으로 안내하고, 그 출입로부터는 평소처럼 조사된 길로만 최단거리 안내함.
+    const gate = offNetwork ? nearestGateNode(lat, lng) : null;
+    const useGate = !!(gate && adjacency[gate.code]);
+
+    let seedBranches, seedEdgeIdx, startPtsFor;
+    if (useGate) {
+      seedEdgeIdx = -1;
+      seedBranches = [{ node: gate.code, cost: gate.d, dir: 'gate' }];
+      startPtsFor = function() { return [[lat, lng], [gate.lat, gate.lng]]; };
+    } else {
+      const e = edges[loc.edgeIdx];
+      const a = e.pts[loc.segIdx], b = e.pts[loc.segIdx + 1];
+      const costToFrom = segSum(e.pts, 0, loc.segIdx) + haversine(loc.lat, loc.lng, a[0], a[1]);
+      const costToTo = haversine(loc.lat, loc.lng, b[0], b[1]) + segSum(e.pts, loc.segIdx + 1, e.pts.length - 1);
+      seedEdgeIdx = loc.edgeIdx;
+      seedBranches = [];
+      if (e.from) seedBranches.push({ node: e.from, cost: costToFrom, dir: 'from' });
+      if (e.to) seedBranches.push({ node: e.to, cost: costToTo, dir: 'to' });
+      startPtsFor = function(seed) {
+        return (seed.dir === 'to')
+          ? [[loc.lat, loc.lng]].concat(e.pts.slice(loc.segIdx + 1).map(toLL))
+          : [[loc.lat, loc.lng]].concat(e.pts.slice(0, loc.segIdx + 1).map(toLL).reverse());
+      };
+    }
+    if (!seedBranches.length) return { noRoute: true };
+
+    let results = [];
+    const MAX_DEPTH = 14; // 안전장치: 끝없이 깊은 탐색/폭발 방지
+    const MAX_RESULTS = 40;
+
+    seedBranches.forEach(function(seed) {
+      const startPts = startPtsFor(seed);
+
+      (function dfs(node, cost, visitedNodes, visitedEdges, pts, nodeSeq, depth) {
+        if (results.length >= MAX_RESULTS) return;
+        // 디버그/문제 추적용: 이 경로가 실제로 거쳐간 코드 목록(~로 시작하면 가상/임시 접점)
+        if (node === dest || node === TEMP_DEST_CODE) {
+          results.push({ total: cost, points: pts.slice(), nodes: nodeSeq.slice(), viaSnap: node === TEMP_DEST_CODE });
+          return;
+        }
+        if (depth >= MAX_DEPTH) return;
+        (adjacency[node] || []).forEach(function(adj) {
+          if (results.length >= MAX_RESULTS) return;
+          if (visitedEdges[adj.edgeIdx]) return;
+          if (visitedNodes[adj.node]) return; // 같은 지점 재방문 금지 (단순 경로만 탐색)
+          const edge = edges[adj.edgeIdx];
+          const forward = (node === edge.from);
+          const segPts = (forward ? edge.pts : edge.pts.slice().reverse()).map(toLL);
+          const nextVisitedNodes = Object.assign({}, visitedNodes); nextVisitedNodes[adj.node] = true;
+          const nextVisitedEdges = Object.assign({}, visitedEdges); nextVisitedEdges[adj.edgeIdx] = true;
+          dfs(adj.node, cost + edge.length, nextVisitedNodes, nextVisitedEdges, pts.concat(segPts.slice(1)), nodeSeq.concat([adj.node]), depth + 1);
+        });
+      })(seed.node, seed.cost, (function(){ const o = {}; o[seed.node] = true; return o; })(),
+         (function(){ const o = {}; if (seedEdgeIdx >= 0) o[seedEdgeIdx] = true; return o; })(), startPts, [seed.node], 0);
+    });
+
+    if (!results.length) return { noRoute: true };
+
+    // 임시 접점(~DEST)을 거쳐 도착한 경로는, 그 접점에서 실제 목적지 좌표까지 남은 짧은 직선
+    // 거리를 더해주고, 그려지는 선도 실제 목적지까지 닿도록 점을 하나 더 붙여줌
+    if (destNear) {
+      results.forEach(function(r) {
+        if (!r.viaSnap) return;
+        r.total += destNear.dist;
+        r.points = r.points.concat([[destNear.destLat, destNear.destLng]]);
+      });
+    }
+
+    // 목적지 코드로 바로 도착하는 "정식" 경로가 이미 있으면, 임시 접점(~DEST)을 거치는 경로는
+    // 그보다 확실히 더 짧을 때만(=진짜 다른/더 가까운 길이 있을 때만) 후보로 남김. 안 그러면
+    // 사실상 같은 경로가 미세한 오차 때문에 "또 다른 경로"처럼 중복으로 뜨게 됨.
+    const bestDirect = results.reduce(function(m, r) { return r.viaSnap ? m : Math.min(m, r.total); }, Infinity);
+    results = results.filter(function(r) { return !r.viaSnap || r.total < bestDirect - 1; });
+    if (!results.length) return { noRoute: true };
+
+    results.sort(function(x, y) { return x.total - y.total; });
+    const dedup = [];
+    results.forEach(function(r) {
+      const dup = dedup.some(function(d) { return Math.abs(d.total - r.total) < 1 && d.points.length === r.points.length; });
+      if (!dup) dedup.push(r);
+    });
+    // 최단 경로보다 너무 많이 돌아가는 후보는 애초에 보여주지 않음 — 안 그러면 거의 안 쓰일
+    // 멀리 돌아가는 조합까지 "추천 경로"로 같이 떠서, 겹치는 구간에서 그게 위로 덮여 보이며
+    // 마치 "엉뚱하게 돌아가는 길"을 추천하는 것처럼 보이는 문제가 있었음.
+    const MAX_DETOUR_RATIO = 1.4;
+    const bestTotal = dedup.length ? dedup[0].total : 0;
+    const top = dedup.filter(function(r) { return r.total <= bestTotal * MAX_DETOUR_RATIO + 1; }).slice(0, maxCount);
+
+    let connector = null;
+    if (offNetwork) {
+      if (useGate) {
+        connector = [[lat, lng], [gate.lat, gate.lng]];
+        top.forEach(function(r) { r.total += gate.d; });
+      } else {
+        connector = [[lat, lng], [loc.lat, loc.lng]];
+        top.forEach(function(r) { r.total += loc.dist; });
+      }
+    }
+    return { routes: top, connector: connector, offNetwork: offNetwork, loc: loc, gate: useGate ? gate.code : null };
+  }
+
+  // 임의의 좌표 목록(고정된 경로) 위에서 가장 가까운 지점을 찾음 (전체 네트워크가 아니라 "이 경로"로만 한정 — 흔들림 방지 핵심)
+  function nearestPointOnPolyline(pts, lat, lng) {
+    let best = null;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = pts[i], b = pts[i + 1];
+      const proj = projectOnSegment(lat, lng, a[0], a[1], b[0], b[1]);
+      if (!best || proj.dist < best.dist) best = { segIdx: i, t: proj.t, lat: proj.lat, lng: proj.lng, dist: proj.dist };
+    }
+    return best;
+  }
+
+  // 고정된 경로(lockedRoute) 위에서 현재 위치의 진행 상황(지나온 구간/남은 구간/남은 거리)을 계산
+  function splitFixedRoute(route, lat, lng) {
+    const pts = route.points;
+    if (!pts || pts.length < 2) return null;
+    const nearest = nearestPointOnPolyline(pts, lat, lng);
+    if (!nearest) return null;
+    const traveled = pts.slice(0, nearest.segIdx + 1).concat([[nearest.lat, nearest.lng]]);
+    const remaining = [[nearest.lat, nearest.lng]].concat(pts.slice(nearest.segIdx + 1));
+    const remainingDist = haversine(nearest.lat, nearest.lng, pts[nearest.segIdx + 1][0], pts[nearest.segIdx + 1][1]) +
+      segSum(pts, nearest.segIdx + 1, pts.length - 1);
+    return {
+      traveled: traveled, remaining: remaining, remainingDist: remainingDist,
+      lat: nearest.lat, lng: nearest.lng, dist: nearest.dist
+    };
+  }
+
+  // 목적지를 고르거나 "경로 변경"을 누르는 그 순간의 위치 정확도가 아직 안 좋을 수 있음
+  // (예: 추적을 켜고 얼마 안 지나 첫 GPS 신호가 부정확할 때 목적지부터 고른 경우) — 그럴 때
+  // 곧바로 그 부정확한 위치로 경로부터 보여주면 "내 위치도 아직 못 찾았는데 경로부터 뜬다"처럼
+  // 보임. 그래서 정확도가 충분히 좋아질 때까지는 여기서 기다리고, 그동안은 onPosition()의 평소
+  // 정확도-대기 로직이 이어받아 처리함(좋아지면 자동 추천, 너무 오래 걸리면 결국 추천).
+  function requestRouteChoiceIfReady(force) {
+    if (!lastRawPos) { setStatus('위치를 아직 확인 못했어 — 잠시만 기다려줘.'); return; }
+    if (lastAcc !== null && lastAcc < GOOD_ACC_M) {
+      waitingForFixSince = null;
+      requestRouteChoice(force);
+    } else {
+      if (!waitingForFixSince) waitingForFixSince = Date.now();
+      const destName = NAMES[destCode] || destCode;
+      const accTxt = (lastAcc !== null) ? Math.round(lastAcc) + 'm' : '확인 중';
+      setStatus('<b>' + destName + '</b> 위치 정확도를 기다리는 중 <span class="badge gps">GPS ±' + accTxt +
+        '</span> — 정확도가 좋아지면 자동으로 경로를 추천할게.');
+    }
+  }
+
+  // 목적지까지 고를 수 있는 경로 목록을 계산해서 패널에 보여줌
+  // force=true면 이미 고정된 경로가 있어도 다시 목록을 띄움. lowAcc는 정확도가 충분히 좋아지길
+  // 기다리다 포기하고 지금 위치로라도 추천한 경우에만 넘겨서, 그 사실을 상태 메시지에 남김.
+  function requestRouteChoice(force, lowAcc) {
+    if (!destCode) return;
+    if (!force && (awaitingChoice || lockedRoute)) return;
+    const pos = lastRawPos;
+    if (!pos) { setStatus('위치를 아직 확인 못했어 — "내 위치 추적"을 먼저 켜줘.'); return; }
+
+    // 등산로(T코드) 목적지는 갈림길마다 실제로 고를 만한 분기가 여러 개일 수 있어 좀 더 넉넉히 보여주고,
+    // 건물 등 그 외 목적지는 불필요한 경로 없이 최단거리 "탑4"만 (지도에도) 보여줌
+    const isTrailDest = /^T\d/.test(destCode);
+    const result = findCandidateRoutes(pos.lat, pos.lng, destCode, isTrailDest ? 8 : 4);
+    result.lowAcc = lowAcc;
+    if (!result.routes || !result.routes.length) {
+      resetRouteChoice();
+      if (remainingLine) { map.removeLayer(remainingLine); remainingLine = null; }
+      if (connectorLine) { map.removeLayer(connectorLine); connectorLine = null; }
+      if (result.noData) setStatus('<span class="badge off">기록된 길 없음</span> 이 토큰에는 조사된 길 데이터가 없어.');
+      else setStatus('<span class="badge off">경로 없음</span> 지금 위치에서 <b>' + (NAMES[destCode] || destCode) + '</b> 까지 이어지는 조사된 길 조합을 찾지 못했어.');
+      return;
+    }
+    awaitingChoice = true;
+    renderRouteChoices(result);
+  }
+
+  function renderRouteChoices(result) {
+    const box = document.getElementById('routePicker');
+    box.innerHTML = '';
+    clearCandidateLines();
+    const label = result.offNetwork ? ' (조사구간 복귀 포함)' : '';
+    const bounds = [];
+
+    // 지도에는 "가장 짧은(추천) 경로"가 맨 위에 보이도록 — 거리가 먼 후보부터 그려서
+    // 가장 가까운 경로(목록 맨 위, 경로 1)가 겹치는 구간에서도 항상 다른 색 위에 올라오게 함.
+    // (목록 버튼은 짧은 순서 그대로 보여주되, 지도 그리는 순서만 반대로 함)
+    for (let i = result.routes.length - 1; i >= 0; i--) {
+      const r = result.routes[i];
+      const color = ROUTE_COLORS[i % ROUTE_COLORS.length];
+      const llPoints = r.points.map(function(p){ return [p[0], p[1]]; });
+      bounds.push.apply(bounds, llPoints);
+
+      // 실제 보이는 색깔 선 (후보 경로마다 다른 색)
+      const visible = L.polyline(llPoints, { color: color, weight: 6, opacity: 0.85 }).addTo(candidateLinesLayer);
+      // 그 아래 깔리는 투명한 넓은 선 — 손가락으로 터치하기 쉽도록 터치 가능 영역을 넓혀줌
+      const touchArea = L.polyline(llPoints, { color: color, weight: 26, opacity: 0.001 }).addTo(candidateLinesLayer);
+      const pick = function() { selectRoute(result, r); };
+      visible.on('click', pick);
+      touchArea.on('click', pick);
+
+      const btn = document.createElement('button');
+      btn.className = 'routeOpt';
+      btn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:' + color +
+        ';margin-right:8px;vertical-align:middle;"></span>경로 ' + (i + 1) + label + ' — 약 <b>' + Math.round(r.total) + 'm</b>' +
+        (i === 0 ? ' <b style="color:#8ab4f8;">(가장 가까움)</b>' : '');
+      btn.onclick = pick;
+      box.insertBefore(btn, box.firstChild);
+    }
+
+    if (result.connector) {
+      bounds.push.apply(bounds, result.connector);
+      L.polyline(result.connector, { color: '#ff9800', weight: 5, opacity: 0.8, dashArray: '2 10' }).addTo(candidateLinesLayer);
+    }
+    if (bounds.length) map.fitBounds(bounds, { padding: [40, 120] });
+
+    box.classList.remove('hidden');
+    document.getElementById('reRouteBtn').classList.remove('hidden');
+    const accWarn = result.lowAcc ? ' <span class="badge nogps">위치 정확도 ±' + Math.round(result.lowAcc) + 'm — 부정확할 수 있어</span>' : '';
+    setStatus('<b>' + (NAMES[destCode] || destCode) + '</b> 로 갈 수 있는 길이 ' + result.routes.length +
+      '개 있어. 지도에서 색깔 있는 경로를 터치하거나 목록에서 골라줘.' + accWarn);
+
+    // 디버그용: 왜 이렇게 돌아가는지 나중에 짚어볼 수 있게, 각 후보가 거쳐간 코드 목록을 작은 글씨로 보여줌
+    const dbg = document.getElementById('routeDebug');
+    if (dbg) {
+      dbg.innerHTML = result.routes.map(function(r, i) {
+        return '경로' + (i + 1) + ': ' + (r.nodes || []).join(' → ');
+      }).join('<br>');
+    }
+  }
+
+  function selectRoute(result, chosen) {
+    lockedRoute = { points: chosen.points, connector: result.connector, offNetwork: result.offNetwork, nodes: chosen.nodes };
+    awaitingChoice = false;
+    clearCandidateLines();
+    document.getElementById('routePicker').classList.add('hidden');
+    document.getElementById('routePicker').innerHTML = '';
+    clearRouteLines();
+    remainingLine = L.polyline(lockedRoute.points, { color: '#dc3545', weight: 6, opacity: 0.95 }).addTo(map);
+    if (lockedRoute.connector) {
+      connectorLine = L.polyline(lockedRoute.connector, { color: '#ff9800', weight: 5, opacity: 0.9, dashArray: '2 10' }).addTo(map);
+    }
+    setStatus('<b>' + (NAMES[destCode] || destCode) + '</b> 경로를 골랐어 — 이제 이 경로만 따라 안내할게.');
+    const dbg = document.getElementById('routeDebug');
+    if (dbg) dbg.innerHTML = '선택한 경로: ' + (lockedRoute.nodes || []).join(' → ');
+    setUiVisible(false); // 검색 + 경로 선택이 끝났으니 패널을 스르륵 치워서 지도를 꽉 채워 보여줌
+  }
+
+  // 검색창(위)/하단 패널(아래)을 한번에 보이기/숨기기 — 숨길 땐 각자 위/아래로 슬라이드되어 사라짐
+  let uiVisible = true;
+  function setUiVisible(v) {
+    uiVisible = v;
+    document.getElementById('topBar').classList.toggle('slide-hide', !v);
+    document.getElementById('bottomPanel').classList.toggle('slide-hide', !v);
+    document.getElementById('uiToggleBtn').classList.toggle('panel-open', v);
+    document.getElementById('uiToggleBtn').textContent = v ? '✕' : '☰';
+  }
+  function toggleUi() { setUiVisible(!uiVisible); }
+
+  // "경로 변경" 버튼: 지금 고정된 경로를 버리고 현재 위치 기준으로 다시 목록을 띄움
+  function changeRoute() {
+    lockedRoute = null;
+    clearRouteLines();
+    requestRouteChoiceIfReady(true);
+  }
+
+  function toggleTracking() {
+    const btn = document.getElementById('trackBtn');
+    if (watchId) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = null;
+      btn.textContent = '내 위치 추적 시작';
+      btn.classList.remove('secondary');
+      return;
+    }
+    if (!navigator.geolocation) { setStatus('이 브라우저는 위치추적을 지원하지 않아.'); return; }
+    btn.textContent = '추적 중지';
+    btn.classList.add('secondary');
+    watchId = navigator.geolocation.watchPosition(onPosition, onPosError, {
+      // maximumAge:0 — 캐시된(최대 몇 초 전) 위치를 재사용하지 않고 매번 새 위치를 받음.
+      // 지나간 흔적이 "한참 후에나" 흐려지던 것은 대부분 오래된 위치가 재사용되면서 화면 갱신이 늦어진 것이었음.
+      enableHighAccuracy: true, maximumAge: 0, timeout: 15000
+    });
+  }
+
+  let lastRawPos = null;
+  let lastAcc = null; // 가장 최근 GPS 정확도(m) — 목적지를 바꾸거나 "경로 변경"을 누를 때도 이 값을 보고 정확도가 좋은지 먼저 확인함
+
+  // 흔들림 방지: 아주 작은 이동에는 지도를 다시 가운데로 끌어오지 않음
+  function panIfMoved(lat, lng) {
+    if (lastPanLatLng && haversine(lastPanLatLng[0], lastPanLatLng[1], lat, lng) < PAN_MIN_MOVE_M) return;
+    lastPanLatLng = [lat, lng];
+    map.panTo([lat, lng]);
+  }
+
+  // GPS를 막 켠 직후의 첫 위치는 정확도가 아주 나쁜 경우가 많음(수백~수천m) — 그 위치로 바로
+  // 경로를 추천하면 전혀 엉뚱한 길을 안내하게 됨. 정확도가 12m 미만으로 충분히 좋아질 때까지는
+  // 추천을 미루고, 너무 오래 안 좋아지면(기기 상황상 어쩔 수 없는 경우) 그때는 어쩔 수 없이
+  // 현재 위치로 추천함.
+  const GOOD_ACC_M = 12;
+  const ACC_WAIT_MAX_MS = 12000;
+  let waitingForFixSince = null;
+
+  function onPosition(pos) {
+    const rawLat = pos.coords.latitude, rawLng = pos.coords.longitude, acc = pos.coords.accuracy;
+    lastRawPos = { lat: rawLat, lng: rawLng };
+    lastAcc = acc;
+    const destName = NAMES[destCode] || destCode;
+
+    // 아직 경로를 고르지 않았으면: 원 GPS 위치만 표시하고(네트워크 전체에서 가장 가까운 선을 매번 다시 찾지 않음 — 그게 흔들림/경로가 왔다갔다하는 원인이었음),
+    // 목적지가 있으면 경로 목록을 띄움.
+    if (!lockedRoute) {
+      if (!meMarker) {
+        meMarker = L.circleMarker([rawLat, rawLng], { radius: 8, color: '#f6b5ae', weight: 2, fillColor: '#f6b5ae', fillOpacity: 0.9 }).addTo(map);
+      } else {
+        meMarker.setLatLng([rawLat, rawLng]);
+      }
+      panIfMoved(rawLat, rawLng);
+      if (!destCode) {
+        waitingForFixSince = null;
+        setStatus('현재 위치 추적 중 <span class="badge gps">GPS ±' + Math.round(acc) + 'm</span> — 목적지를 선택해줘.');
+      } else if (!awaitingChoice) {
+        if (acc < GOOD_ACC_M) {
+          waitingForFixSince = null;
+          requestRouteChoice(false);
+        } else if (waitingForFixSince && (Date.now() - waitingForFixSince) > ACC_WAIT_MAX_MS) {
+          // 너무 오래 기다렸으면 지금 위치로라도 추천 (상태 메시지에 정확도가 낮았다는 걸 남김)
+          requestRouteChoice(false, acc);
+        } else {
+          if (!waitingForFixSince) waitingForFixSince = Date.now();
+          setStatus('<b>' + destName + '</b> 위치 정확도를 기다리는 중 <span class="badge gps">GPS ±' + Math.round(acc) +
+            'm</span> — 정확도가 좋아지면 자동으로 경로를 추천할게.');
+        }
+      }
+      return;
+    }
+
+    // 경로가 고정된 상태: "이 경로 위"에서만 진행 상황을 계산 — 전체 네트워크를 다시 뒤지지 않으니 갈림길 근처에서도 다른 길로 안 튐
+    const split = splitFixedRoute(lockedRoute, rawLat, rawLng);
+    if (!split) return;
+    const onRoute = split.dist <= ON_PATH_MAX_M;
+    const lat = onRoute ? split.lat : rawLat;
+    const lng = onRoute ? split.lng : rawLng;
+
+    if (!meMarker) {
+      meMarker = L.circleMarker([lat, lng], { radius: 8, color: '#f6b5ae', weight: 2, fillColor: '#f6b5ae', fillOpacity: 0.9 }).addTo(map);
+    } else {
+      meMarker.setLatLng([lat, lng]);
+    }
+    panIfMoved(lat, lng);
+
+    traveledTrace.push([lat, lng]);
+    if (traveledTrace.length >= 2) {
+      // 지나간 구간은 색 자체를 눌러서(회갈색) 확실히 "흐려 보이게" 하고, 매 위치마다 즉시 다시 그림 —
+      // 남은 구간(remainingLine)보다 항상 아래에 깔리도록 z-순서도 매번 명시적으로 맞춰줌
+      if (!traveledLine) traveledLine = L.polyline(traveledTrace, { color: '#7a4a48', weight: 5, opacity: 0.55 }).addTo(map);
+      else traveledLine.setLatLngs(traveledTrace);
+      traveledLine.bringToBack();
+    }
+
+    if (!onRoute) {
+      // 고른 경로에서 너무 멀어짐 — 억지로 그 경로를 유지하지 않고, 다시 고를 수 있게 패널을 다시 띄워서 알려줌
+      setUiVisible(true);
+      setStatus('<span class="badge off">경로에서 벗어났어 (' + Math.round(split.dist) + 'm)</span> "경로 변경"을 눌러서 다시 골라줘.');
+      return;
+    }
+
+    remainingLine.setLatLngs(split.remaining);
+    remainingLine.bringToFront();
+
+    if (split.remainingDist <= ARRIVED_MAX_M) {
+      setUiVisible(true); // 도착했으니 숨겨둔 패널을 다시 보여줌
+      setStatus('<b>' + destName + '</b> 도착! 🎉 <span class="badge gps">GPS ±' + Math.round(acc) + 'm</span>');
+    } else {
+      const nextPoint = split.remaining[Math.min(1, split.remaining.length - 1)];
+      const b = bearing(lat, lng, nextPoint[0], nextPoint[1]);
+      setStatus('<b>' + destName + '</b> <span class="badge path">선택한 경로</span> 남은 거리 약 <b>' + Math.round(split.remainingDist) + 'm</b>, 다음 방향: <b>' + compass8(b) + '</b> ' +
+        '<span class="badge gps">GPS ±' + Math.round(acc) + 'm</span>');
+    }
+  }
+
+  function onPosError(err) {
+    setStatus('위치를 가져오지 못했어: ' + (err.message || '') + ' <span class="badge nogps">GPS 실패</span>');
+  }
+
+  // ====== 걷는 방향이 위로 오도록 지도 회전 (나침반) ======
+  // "직전 방향 유지 후 한번에 보정"하면 그 보정 순간에 지도가 툭 튀어서 잔상처럼 흔들려 보임.
+  // 대신 최근 N개 값의 평균(원형 평균 — 0도/360도 경계를 정확히 다루기 위해 sin/cos으로 평균)을
+  // 매번 새로 내서 적용하기 때문에, 한두 개의 튄 값은 평균에 묻혀 티가 안 나고, 흔들림 없이 부드럽게 따라감.
+  let headingBuffer = [];
+  const HEADING_WINDOW = 15; // 평균에 포함할 최근 샘플 수 (클수록 더 부드럽지만 반응은 느려짐)
+
+  function circularMeanHeading(samples) {
+    let sx = 0, sy = 0;
+    samples.forEach(function(d) {
+      const r = d * Math.PI / 180;
+      sx += Math.cos(r); sy += Math.sin(r);
+    });
+    let m = Math.atan2(sy, sx) * 180 / Math.PI;
+    if (m < 0) m += 360;
+    return m;
+  }
+
+  function applyRotation(headingDeg) {
+    document.getElementById('mapRotate').style.transform = 'rotate(' + (-headingDeg) + 'deg)';
+  }
+
+  function onOrientation(e) {
+    let heading = null, accuracy = null;
+    if (typeof e.webkitCompassHeading === 'number') {
+      heading = e.webkitCompassHeading; // iOS Safari: 0=북, 시계방향 증가 (바로 사용 가능)
+      if (typeof e.webkitCompassAccuracy === 'number') accuracy = e.webkitCompassAccuracy; // -1 = 신호 무효
+    } else if (typeof e.alpha === 'number') {
+      heading = (360 - e.alpha) % 360; // Android 등: 근사치
+    }
+    if (heading === null || isNaN(heading)) return;
+    if (accuracy !== null && accuracy < 0) return; // 완전히 무효한 값은 평균에도 섞지 않음
+
+    headingBuffer.push(heading);
+    if (headingBuffer.length > HEADING_WINDOW) headingBuffer.shift();
+    applyRotation(circularMeanHeading(headingBuffer));
+  }
+
+  // 지도가 CSS로 회전된 상태에서는 Leaflet이 화면 드래그 좌표를 회전 안 된 걸로 착각해서,
+  // 손가락으로 민 방향과 실제로 지도가 움직이는 방향이 어긋나 보임(회전 각도에 따라 달라짐).
+  // 그래서 나침반(회전)이 켜져 있는 동안엔 손으로 끄는 걸 아예 막고 내 위치를 자동으로 따라가게 하고,
+  // 꺼지면 원래대로 자유롭게 드래그되도록 함.
+  function toggleCompass() {
+    const btn = document.getElementById('rotateBtn');
+    if (compassOn) {
+      window.removeEventListener('deviceorientation', onOrientation);
+      compassOn = false;
+      headingBuffer = [];
+      btn.classList.remove('secondary');
+      btn.textContent = '방향센서';
+      applyRotation(0);
+      if (map.dragging) map.dragging.enable();
+      return;
+    }
+    const DOE = window.DeviceOrientationEvent;
+    if (DOE && typeof DOE.requestPermission === 'function') {
+      // iOS 13+: 반드시 사용자 탭 안에서 호출해야 함
+      DOE.requestPermission().then(function(state) {
+        if (state === 'granted') {
+          window.addEventListener('deviceorientation', onOrientation);
+          compassOn = true;
+          btn.classList.add('secondary');
+          btn.textContent = '회전 끄기';
+          if (map.dragging) map.dragging.disable();
+          setStatus('회전 모드: 내 위치를 자동으로 따라가. 손으로 끄는 건 꺼둘게 — 자유롭게 움직이려면 "회전 끄기"를 눌러줘.');
+        } else {
+          setStatus('방향센서 권한이 거부됐어. 설정에서 허용해줘야 지도가 회전돼.');
+        }
+      }).catch(function() {
+        setStatus('방향센서를 사용할 수 없어 (iOS 권한 요청 실패).');
+      });
+    } else if (window.DeviceOrientationEvent) {
+      window.addEventListener('deviceorientation', onOrientation);
+      compassOn = true;
+      btn.classList.add('secondary');
+      btn.textContent = '회전 끄기';
+      if (map.dragging) map.dragging.disable();
+      setStatus('회전 모드: 내 위치를 자동으로 따라가. 손으로 끄는 건 꺼둘게 — 자유롭게 움직이려면 "회전 끄기"를 눌러줘.');
+    } else {
+      setStatus('이 기기/브라우저는 방향센서를 지원하지 않아.');
+    }
+  }
+
+  function setStatus(html) {
+    document.getElementById('status').innerHTML = html;
+  }
+
+  initMap();
+  setUiVisible(true); // 아이콘 모양/위치를 현재 상태(열림)에 맞춰 초기화
+  // 쿼리스트링(?t=) 또는 이전에 썼던 토큰을 자동으로 채워줌
+  const qsToken = new URLSearchParams(location.search).get('t');
+  const savedToken = (function(){ try { return localStorage.getItem('trailnav_token'); } catch(e){ return null; } })();
+  if (qsToken || savedToken) {
+    document.getElementById('tokenInput').value = qsToken || savedToken;
+    loadWithToken();
+  }
+</script>
+</body>
+</html>

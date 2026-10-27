@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>층 조사 미션 · 다녀봐!강대강캠!</title>
+<style>
+:root{
+  --bg:#f4f6fa; --card:#fff; --text:#1c2333; --sub:#6b7488; --line:#dde2ec;
+  --pri:#2f6bff; --pri-soft:#e6eeff; --ok:#15a36a; --warn:#e5942b; --danger:#d9534f;
+  --corr:#cfd6e4; --left:#7c5cff; --right:#ff7a45; --shadow:0 4px 18px rgba(30,45,90,.12);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#10141d; --card:#1b2130; --text:#eef1f8; --sub:#98a2b8; --line:#2c3447;
+    --pri:#6d96ff; --pri-soft:#22304f; --corr:#33405b; --shadow:0 4px 18px rgba(0,0,0,.45); }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif}
+html{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom}
+body{overflow-x:hidden;overscroll-behavior-x:none;touch-action:pan-y pinch-zoom;position:relative;min-height:100vh;padding:0 16px calc(24px + env(safe-area-inset-bottom))}
+.wrap{max-width:480px;margin:0 auto;overflow-x:clip}
+header{padding:18px 0 8px}
+header h1{font-size:18px;margin:0 0 2px}
+header p{margin:0;color:var(--sub);font-size:13px}
+.mission{display:flex;gap:8px;margin:10px 0 4px}
+.mission select{flex:1;min-width:0;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:15px}
+.dots{display:flex;gap:6px;margin:12px 0}
+.dots i{flex:1;height:6px;border-radius:3px;background:var(--line);transition:.3s}
+.dots i.on{background:var(--pri)}
+.dots i.done{background:var(--ok)}
+.card{background:var(--card);border-radius:18px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 4px}
+.card p.hint{margin:0 0 12px;color:var(--sub);font-size:13px;line-height:1.5}
+.shapes{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.shape{border:2px solid var(--line);border-radius:14px;background:var(--bg);padding:8px;text-align:center;color:var(--text);font-size:14px;cursor:pointer}
+.shape svg{width:100%;height:84px}
+.shape.on{border-color:var(--pri);background:var(--pri-soft)}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{border:0;border-radius:12px;padding:12px 14px;font-size:15px;font-weight:600;background:var(--pri);color:#fff;cursor:pointer}
+.btn.ghost{background:var(--pri-soft);color:var(--pri)}
+.btn.line{background:transparent;border:1px solid var(--line);color:var(--text)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.big{width:100%;padding:15px;font-size:16px}
+.tools{display:flex;gap:8px;margin-bottom:10px}
+.tool{flex:1;border:2px solid var(--line);border-radius:12px;padding:10px 4px;background:var(--bg);color:var(--text);font-size:14px;cursor:pointer}
+.tool.on{border-color:var(--pri);background:var(--pri-soft);font-weight:700}
+.diagram{background:var(--bg);border-radius:14px;touch-action:manipulation}
+.diagram svg{width:100%;display:block}
+.chips{display:flex;gap:8px;margin:10px 0}
+.chip{flex:1;border:2px solid var(--line);background:var(--bg);color:var(--text);border-radius:12px;padding:10px 4px;font-size:14px;cursor:pointer}
+.chip.on{border-color:var(--pri);background:var(--pri-soft);font-weight:700}
+.stack{position:relative;height:150px;margin:12px 0 6px}
+.rc{position:absolute;inset:0;border-radius:18px;background:var(--card);border:2px solid var(--line);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;touch-action:none;user-select:none;-webkit-user-select:none}
+.rc.back{transform:scale(.94) translateY(10px);opacity:.7;box-shadow:none}
+.rc .no{font-size:34px;font-weight:800;letter-spacing:-.5px}
+.rc .nm{font-size:15px;color:var(--sub);margin-top:4px;padding:0 10px;text-align:center}
+.rc .tag{position:absolute;top:12px;font-size:13px;font-weight:700;padding:4px 10px;border-radius:10px;opacity:0;color:#fff}
+.rc .tag.l{left:12px;background:var(--left)}
+.rc .tag.r{right:12px;background:var(--right)}
+.rc .tag.s{top:auto;bottom:12px;background:var(--sub)}
+.swbtns{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.swbtns .btn{padding:11px 4px;font-size:14px}
+.rotbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.btn.rot{background:var(--text);color:var(--card);padding:13px 6px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn.rot .ri{font-size:22px;line-height:1}
+.swbtns.one{grid-template-columns:2fr 1fr}
+.btn.pair{background:var(--pri);color:#fff;border-color:var(--pri)}
+.swbtns .l{background:var(--left)} .swbtns .r{background:var(--right)}
+.rc.g{border-color:var(--ok)} .rc.y{border-color:var(--warn)} .rc.r{border-color:var(--danger)}
+.rc .cf{position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:12.5px;font-weight:700}
+.rc.g .cf{color:var(--ok)} .rc.y .cf{color:var(--warn)} .rc.r .cf{color:var(--danger)}
+.draftbar{background:var(--pri-soft);border-radius:12px;padding:10px 12px;margin:0 0 10px;font-size:13px;line-height:1.6}
+.draftbar .btn{padding:7px 10px;font-size:13px;margin-top:6px}
+.dinfo{background:var(--bg);border-radius:10px;padding:8px 10px;margin:0 0 10px;font-size:12.5px;line-height:1.6;color:var(--sub);white-space:pre-line}
+.legend{display:flex;gap:12px;justify-content:center;font-size:12px;color:var(--sub);margin-top:6px}
+.legend b{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+.small{font-size:12px;color:var(--sub)}
+.msg{font-size:14px;line-height:1.55}
+.sent{list-style:none;padding:0;margin:0}
+.sent li{padding:10px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.5}
+.sent li:last-child{border-bottom:0}
+.sent em{font-style:normal;font-weight:700;color:var(--pri)}
+input.nick{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);color:var(--text);font-size:15px;margin:8px 0}
+.prog{height:10px;border-radius:5px;background:var(--line);overflow:hidden;margin:8px 0 4px}
+.prog div{height:100%;background:linear-gradient(90deg,var(--pri),var(--ok));width:0;transition:width .5s}
+.hide{display:none!important}
+.pop{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);background:var(--card);padding:22px 26px;border-radius:20px;box-shadow:var(--shadow);text-align:center;z-index:50;font-weight:800;font-size:18px}
+.conf{position:fixed;top:-20px;font-size:22px;z-index:40;pointer-events:none;animation:fall 1.8s ease-in forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(540deg);opacity:.2}}
+pre.json{white-space:pre-wrap;word-break:break-all;font-size:11px;background:var(--bg);border-radius:10px;padding:10px;max-height:160px;overflow:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧭 층 조사 미션 <span class="small">· 다녀봐!강대강캠!</span></h1>
+    <p>복도를 걸으며 방을 슥슥 넘기면, 길 안내가 만들어져요.</p>
+  </header>
+
+  <div class="mission">
+    <select id="missionSel" aria-label="미션 선택"></select>
+  </div>
+  <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div>
+
+  <!-- 1단계 -->
+  <section id="s1" class="card">
+    <h2>① 복도 모양을 골라요</h2>
+    <p class="hint">엘리베이터 앞에서 층 전체를 떠올려 보고, 가장 비슷한 모양을 눌러요.</p>
+    <div class="dinfo hide" id="dinfo1"></div>
+    <div class="shapes" id="shapes"></div>
+    <p class="small" style="margin:14px 0 6px">방은 복도 어디에 있나요?</p>
+    <div class="chips" id="sideMode"></div>
+    <div style="height:8px"></div>
+    <button class="btn big" id="to2" disabled>다음 ▶</button>
+  </section>
+
+  <!-- 2단계 -->
+  <section id="s2" class="card hide">
+    <h2>② 엘리베이터·계단 위치를 콕</h2>
+    <p class="hint">아래에서 종류를 고르고, 복도 그림의 해당 위치를 눌러요. 다시 누르면 지워져요.</p>
+    <div class="dinfo hide" id="dinfo2"></div>
+    <div class="tools" id="tools"></div>
+    <div class="diagram"><svg id="svg2" viewBox="0 0 300 300"></svg></div>
+    <div style="height:12px"></div>
+    <div class="btns"><button class="btn line" data-back="1">◀ 이전</button><button class="btn" id="to3" style="flex:1" disabled>다음 ▶</button></div>
+  </section>
+
+  <!-- 3단계 -->
+  <section id="s3" class="card hide">
+    <h2 id="s3title">③ 걸어 볼까요?</h2>
+    <p class="hint" id="s3hint"></p>
+    <div class="draftbar hide" id="draftBar"><span id="draftTxt"></span><br><button class="btn line" id="autoTgl" type="button"></button></div>
+    <div class="diagram"><svg id="svg3" viewBox="-30 -30 360 360"></svg></div>
+    <div class="rotbar">
+      <button class="btn rot" id="rotL" aria-label="왼쪽으로 90도 돌리기"><span class="ri">↺</span>왼쪽으로 돌리기</button>
+      <button class="btn rot" id="rotR" aria-label="오른쪽으로 90도 돌리기">오른쪽으로 돌리기<span class="ri">↻</span></button>
+    </div>
+    <button class="btn ghost" id="rotAuto" style="width:100%;margin-top:8px;font-size:14px"></button>
+    <div id="dirLabelBox" class="hide">
+      <p class="small" style="margin:10px 0 0">내려서 어느 쪽으로 가요?</p>
+      <div class="chips" id="dirChips"></div>
+      <p class="small hide" id="sideTxt" style="margin:4px 0 0">방은 걷는 방향 기준 어느 쪽에 있어요?</p>
+      <div class="chips hide" id="sideChips"></div>
+    </div>
+    <div id="walkBox" class="hide">
+      <div class="stack" id="stack"></div>
+      <div class="swbtns">
+        <button class="btn l" id="bL">◀ 왼쪽 방</button>
+        <button class="btn line" id="bS">모르겠어요</button>
+        <button class="btn r" id="bR">오른쪽 방 ▶</button>
+        <button class="btn hide" id="bN">다음 방 ✓</button>
+        <button class="btn ghost hide" id="bD" style="grid-column:1/-1">✔ 도면대로 맞아요</button>
+      </div>
+      <button class="btn line hide" id="bP" style="width:100%;margin-top:8px">↔ 앞 방의 맞은편이에요</button>
+      <div class="legend"><span><b style="background:var(--left)"></b>걷는 방향 기준 왼쪽</span><span><b style="background:var(--right)"></b>오른쪽</span></div>
+      <div class="legend hide" id="confLegend"><span><b style="background:var(--ok)"></b>도면 확실</span><span><b style="background:var(--warn)"></b>확인 권장</span><span><b style="background:var(--danger)"></b>확인 필요</span></div>
+    </div>
+    <div style="height:12px"></div>
+    <div class="btns">
+      <button class="btn line" id="undo">↩ 되돌리기</button>
+      <button class="btn ghost" id="endWalk" style="flex:1">여기까지 걸었어요</button>
+    </div>
+    <div class="prog"><div id="prog"></div></div>
+    <div class="small" id="progTxt"></div>
+  </section>
+
+  <!-- 4단계 -->
+  <section id="s4" class="card hide">
+    <h2>🎉 조사 완료!</h2>
+    <p class="hint">이렇게 안내가 만들어졌어요. 틀린 문장이 있으면 ‘다시 걷기’로 고칠 수 있어요.</p>
+    <ul class="sent" id="sent"></ul>
+    <input class="nick" id="nick" maxlength="20" placeholder="기여자 이름 또는 닉네임 (선택)">
+    <div class="btns">
+      <button class="btn line" id="again">↺ 다시 걷기</button>
+      <button class="btn" id="submit" style="flex:1">제출하기</button>
+    </div>
+    <div id="done" class="msg hide" style="margin-top:12px"></div>
+  </section>
+
+  <p class="small" style="text-align:center;margin-top:18px" id="modeNote"></p>
+</div>
+
+<script>
+(function(){
+'use strict';
+// ───────── 설정 ─────────
+// 서버(GAS) 주소를 넣으면 제출이 서버로 갑니다. 비어 있으면 '시연 모드'(이 기기에만 저장).
+const API_URL = 'https://script.google.com/macros/s/AKfycbzdFualGxneSbdscvcDxOnIXqqYq2zoK6uZe_c10zog07Cew6F8HUzjNeN7cCnuZ9C0/exec';
+
+// 시연용 샘플 미션 (실제로는 서버에서 미션 목록과 호실 목록을 받아옵니다)
+let MISSIONS = [
+  { id:'demo-3', label:'샘플관 3층', building:'샘플관', floor:3, rooms:[
+    {no:'301',name:'치의학과 사무실',side:'L',conf:'높음',from:'엘리베이터',dirLabel:'왼쪽'},{no:'302',name:'강의실',side:'L',conf:'높음',from:'엘리베이터',dirLabel:'왼쪽'},{no:'303',name:'학과장실',side:'R',conf:'중간',from:'엘리베이터',dirLabel:'왼쪽'},
+    {no:'304',name:'연구실',side:'L',conf:'낮음',from:'엘리베이터',dirLabel:'왼쪽'},{no:'305',name:'세미나실'},{no:'306',name:'강의실',side:'R',conf:'높음',from:'엘리베이터',dirLabel:'왼쪽'},
+    {no:'307',name:'대학원 사무실',side:'L',conf:'중간',from:'엘리베이터',dirLabel:'왼쪽'},{no:'308',name:'휴게실'}], info:{shape:'I',elev:'동쪽 끝 1곳',stair:'양 끝 2곳',door:'서쪽 끝',note:''}},
+  { id:'demo-2', label:'샘플관 2층', building:'샘플관', floor:2, rooms:[
+    {no:'201',name:'행정실'},{no:'202',name:'대형 강의실'},{no:'203',name:'강의실'},
+    {no:'204',name:'학생회실'},{no:'205',name:'강의실'},{no:'206',name:'스터디룸'}]}
+];
+
+const SHAPES = {
+  I:{name:'일자형', closed:false, pts:[[40,150],[260,150]]},
+  L:{name:'ㄱ자형', closed:false, pts:[[55,45],[55,250],[255,250]]},
+  U:{name:'ㄷ자형', closed:false, pts:[[60,45],[60,250],[240,250],[240,45]]},
+  O:{name:'ㅁ자형(순환)', closed:true, pts:[[60,60],[240,60],[240,240],[60,240]]}
+};
+const TYPES = { elev:{icon:'🛗',name:'엘리베이터'}, stair:{icon:'🪜',name:'계단'}, door:{icon:'🚪',name:'출입구'} };
+const DIR_LABELS = ['왼쪽','앞쪽','오른쪽'];
+
+// ───────── 상태 ─────────
+let mission = MISSIONS[0];
+let st;
+function fresh(){ return { step:1, shape:null, anchors:[], tool:'elev', sub:'pickStart',
+  walks:[], skipped:[], cur:null, queue:[], sides:'both', pairNext:false, manual:0, headUp:true, autoLv:'gy' }; }
+st = fresh();
+
+const $ = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+let ROT = 0;   // 3단계 그림 회전각(도)
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function sv(tag, attrs, parent){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); if(parent) parent.appendChild(e); return e; }
+// 도면 초안 확신도: 높음=🟢(자동 인정) / 중간=🟡 / 낮음·미지정=🔴
+function hasDraft(m){ return !!(m.rooms && m.rooms.some(r=>r.conf||r.side)); }
+function rc(r){ if(!hasDraft(mission)) return ''; if(r.side && r.conf==='높음') return 'g'; if(r.side && r.conf==='중간') return 'y'; return 'r'; }
+function autoRooms(){ return (hasDraft(mission) && st.autoLv!=='none') ? mission.rooms.filter(r=>{ const k=rc(r); return k==='g' || (k==='y' && st.autoLv==='gy'); }) : []; }
+function infoText(){
+  const i=mission.info; if(!i) return '';
+  const cut=t=>String(t||'').slice(0,140), L=[];
+  if(i.elev) L.push('🛗 승강기: '+cut(i.elev)); if(i.stair) L.push('🪜 계단: '+cut(i.stair)); if(i.door) L.push('🚪 출입구: '+cut(i.door)); if(i.note) L.push('📝 '+cut(i.note));
+  return L.length ? '도면에서 읽은 정보\n'+L.join('\n') : '';
+}
+function showInfo(){ ['dinfo1','dinfo2'].forEach(id=>{ const t=infoText(), e=$(id); e.textContent=t; e.classList.toggle('hide',!t); }); }
+function store(k,v){ try{ if(v===undefined) return localStorage.getItem(k); localStorage.setItem(k,v); }catch(e){ return null; } }
+
+// ───────── 복도 기하 ─────────
+function geom(shapeKey){
+  const sh = SHAPES[shapeKey], pts = sh.pts.slice();
+  if(sh.closed) pts.push(pts[0]);
+  const segs=[]; let L=0;
+  for(let i=0;i<pts.length-1;i++){
+    const [x1,y1]=pts[i],[x2,y2]=pts[i+1], len=Math.hypot(x2-x1,y2-y1);
+    segs.push({x1,y1,x2,y2,len,s0:L}); L+=len;
+  }
+  return {segs,L,closed:sh.closed,pts};
+}
+function pointAt(g,s){
+  if(g.closed){ s=((s%g.L)+g.L)%g.L; } else { s=Math.max(0,Math.min(g.L,s)); }
+  for(const sg of g.segs){
+    if(s<=sg.s0+sg.len+1e-6){
+      const t=(s-sg.s0)/sg.len, tx=(sg.x2-sg.x1)/sg.len, ty=(sg.y2-sg.y1)/sg.len;
+      return {x:sg.x1+(sg.x2-sg.x1)*t, y:sg.y1+(sg.y2-sg.y1)*t, tx, ty};
+    }
+  }
+  const sg=g.segs[g.segs.length-1]; return {x:sg.x2,y:sg.y2,tx:(sg.x2-sg.x1)/sg.len,ty:(sg.y2-sg.y1)/sg.len};
+}
+function nearest(g,x,y){
+  let best=null;
+  for(const sg of g.segs){
+    const dx=sg.x2-sg.x1, dy=sg.y2-sg.y1;
+    let t=((x-sg.x1)*dx+(y-sg.y1)*dy)/(sg.len*sg.len); t=Math.max(0,Math.min(1,t));
+    const px=sg.x1+dx*t, py=sg.y1+dy*t, d=Math.hypot(px-x,py-y);
+    if(!best||d<best.d) best={d,s:sg.s0+sg.len*t,x:px,y:py};
+  }
+  return best;
+}
+function svgPoint(svg,ev){
+  const pt=svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY;
+  const m=svg.getScreenCTM(); return m?pt.matrixTransform(m.inverse()):{x:0,y:0};
+}
+function corridorPath(g){ return g.pts.map((p,i)=>(i?'L':'M')+p[0]+' '+p[1]).join(' ')+(g.closed?' Z':''); }
+
+// ───────── 공통 렌더 ─────────
+function drawBase(svg, g){
+  svg.innerHTML='';
+  sv('path',{d:corridorPath(g),fill:'none',stroke:'var(--corr)','stroke-width':26,'stroke-linecap':'round','stroke-linejoin':'round'},svg);
+  sv('path',{d:corridorPath(g),fill:'none',stroke:'var(--bg)','stroke-width':2,'stroke-dasharray':'6 8','stroke-linecap':'round','stroke-linejoin':'round'},svg);
+}
+function anchorName(a){
+  const same = st.anchors.filter(x=>x.type===a.type);
+  const n = same.length>1 ? (same.indexOf(a)+1) : '';
+  return TYPES[a.type].name + n;
+}
+function drawAnchors(svg, g, opts){
+  st.anchors.forEach(a=>{
+    const p=pointAt(g,a.s);
+    const grp=sv('g',{transform:`translate(${p.x},${p.y}) rotate(${-ROT})`,style:opts&&opts.tap?'cursor:pointer':''},svg);
+    sv('circle',{r:opts&&opts.hl===a?19:16,fill:'var(--card)',stroke:opts&&opts.hl===a?'var(--pri)':'var(--sub)','stroke-width':opts&&opts.hl===a?3:1.5},grp);
+    const t=sv('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':17},grp); t.textContent=TYPES[a.type].icon;
+    if(opts&&opts.tap) grp.addEventListener('click',e=>{ e.stopPropagation(); opts.tap(a); });
+  });
+}
+
+// ───────── 단계 이동 ─────────
+function go(n){
+  st.step=n;
+  ['s1','s2','s3','s4'].forEach((id,i)=>$(id).classList.toggle('hide',i+1!==n));
+  [...$('dots').children].forEach((d,i)=>{ d.className = i+1<n?'done':(i+1===n?'on':''); });
+  if(n===2) render2();
+  if(n===3) render3();
+  if(n===4) render4();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+document.querySelectorAll('[data-back]').forEach(b=>b.addEventListener('click',()=>go(+b.dataset.back)));
+
+// ───────── 미션 선택 ─────────
+const sel=$('missionSel');
+function fillSel(){ sel.innerHTML=''; MISSIONS.forEach((m,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent='📍 '+m.label; sel.appendChild(o); }); }
+async function api(q){ const r=await fetch(API_URL+'?page=api&'+q); return r.json(); }
+async function pickMission(i){
+  mission=MISSIONS[i]; st=fresh();
+  if(API_URL && !mission.rooms){
+    try{ const j=await api('action=floormission&id='+encodeURIComponent(mission.id)); if(j.success){ mission.rooms=j.rooms; mission.info=j.info||null; } }
+    catch(e){}
+    if(!mission.rooms){ mission.rooms=[]; $('modeNote').textContent='⚠️ 호실 목록을 불러오지 못했어요. 새로고침해 주세요.'; }
+  }
+  buildShapes(); go(1);
+}
+sel.addEventListener('change',()=>pickMission(+sel.value));
+
+// ───────── 1단계: 틀 ─────────
+function buildShapes(){
+  if(!st.shape && mission.info && SHAPES[mission.info.shape]) st.shape=mission.info.shape;
+  showInfo();
+  const box=$('shapes'); box.innerHTML='';
+  Object.keys(SHAPES).forEach(k=>{
+    const g=geom(k), b=document.createElement('button'); b.className='shape'+(st.shape===k?' on':''); b.type='button';
+    const svg=document.createElementNS(NS,'svg'); svg.setAttribute('viewBox','0 0 300 300');
+    sv('path',{d:corridorPath(g),fill:'none',stroke:'var(--pri)','stroke-width':22,'stroke-linecap':'round','stroke-linejoin':'round',opacity:.85},svg);
+    b.appendChild(svg); b.appendChild(document.createTextNode(SHAPES[k].name));
+    b.addEventListener('click',()=>{ st.shape=k; st.anchors=[]; st.walks=[]; st.skipped=[]; buildShapes(); $('to2').disabled=false; });
+    box.appendChild(b);
+  });
+  $('to2').disabled=!st.shape;
+  const sm=$('sideMode'); sm.innerHTML='';
+  [['both','양옆에 있어요'],['one','한쪽에만 있어요']].forEach(([v,t])=>{
+    const b=document.createElement('button'); b.type='button'; b.className='chip'+(st.sides===v?' on':''); b.textContent=t;
+    b.addEventListener('click',()=>{ st.sides=v; buildShapes(); }); sm.appendChild(b);
+  });
+}
+$('to2').addEventListener('click',()=>{ if(st.shape) go(2); });
+
+// ───────── 2단계: 위치 ─────────
+function render2(){
+  const tools=$('tools'); tools.innerHTML='';
+  Object.keys(TYPES).forEach(k=>{
+    const b=document.createElement('button'); b.type='button'; b.className='tool'+(st.tool===k?' on':'');
+    b.textContent=TYPES[k].icon+' '+TYPES[k].name;
+    b.addEventListener('click',()=>{ st.tool=k; render2(); });
+    tools.appendChild(b);
+  });
+  const g=geom(st.shape), svg=$('svg2');
+  drawBase(svg,g);
+  drawAnchors(svg,g,{tap:a=>{ st.anchors=st.anchors.filter(x=>x!==a); render2(); }});
+  svg.onclick=ev=>{
+    const p=svgPoint(svg,ev), n=nearest(g,p.x,p.y);
+    if(n.d>40) return;
+    // 너무 가까운 같은 종류는 중복 방지
+    if(st.anchors.some(a=>a.type===st.tool && Math.abs(a.s-n.s)<14)) return;
+    st.anchors.push({type:st.tool,s:n.s}); render2();
+    if(navigator.vibrate) try{navigator.vibrate(15)}catch(e){}
+  };
+  $('to3').disabled = st.anchors.length===0;
+}
+$('to3').addEventListener('click',()=>{ st.sub='pickStart'; st.cur=null; initQueue(); go(3); });
+
+// ───────── 3단계: 걷기 ─────────
+function initQueue(){
+  const done=new Set(); st.walks.forEach(w=>w.items.forEach(i=>done.add(i.no))); st.skipped.forEach(n=>done.add(n));
+  const au=new Set(autoRooms().map(r=>r.no)); st.queue = mission.rooms.filter(r=>!done.has(r.no) && !au.has(r.no));
+}
+function autoRot(){
+  if(!st.headUp || st.sub!=='walking' || !st.cur) return 0;
+  const g=geom(st.shape), w=st.cur; let pos=0; w.items.forEach(i=>{ if(!i.pair) pos++; });
+  const p=pointAt(g,w.anchor.s+w.dir*(w.step||24)*pos);
+  return -90-Math.atan2(p.ty*w.dir,p.tx*w.dir)*180/Math.PI;
+}
+function render3(){
+  ROT = st.manual + autoRot();
+  render3Inner();
+  const svg=$('svg3'), grp=document.createElementNS(NS,'g');
+  grp.setAttribute('transform',`rotate(${ROT} 150 150)`);
+  while(svg.firstChild) grp.appendChild(svg.firstChild);
+  svg.appendChild(grp);
+  $('rotAuto').textContent = '🧭 걷는 방향이 위로: '+(st.headUp?'켜짐':'꺼짐');
+}
+$('rotL').addEventListener('click',()=>{ st.manual-=90; render3(); });
+$('rotR').addEventListener('click',()=>{ st.manual+=90; render3(); });
+$('rotAuto').addEventListener('click',()=>{ st.headUp=!st.headUp; render3(); });
+function renderDraftBar(){
+  const bar=$('draftBar'), on=hasDraft(mission); bar.classList.toggle('hide',!on); $('confLegend').classList.toggle('hide',!on);
+  if(!on) return;
+  const c={g:0,y:0,r:0}; mission.rooms.forEach(r=>c[rc(r)]++);
+  const au0=new Set(autoRooms().map(r=>r.no)), need=mission.rooms.filter(r=>!au0.has(r.no)), cnt={};
+  need.forEach(r=>{ if(r.from&&r.dirLabel){ const k=r.from+'|'+r.dirLabel; cnt[k]=(cnt[k]||0)+1; } });
+  const best=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0];
+  $('draftTxt').innerHTML='🟢 확실 <b>'+c.g+'</b> · 🟡 권장 <b>'+c.y+'</b> · 🔴 필요 <b>'+c.r+'</b>'+(best?'<br>추천 출발: <b>'+esc(best.split('|')[0])+'</b>에서 <b>'+esc(best.split('|')[1])+'</b>으로 (도면 기준)':'');
+  $('autoTgl').textContent = st.autoLv==='gy' ? '🟢🟡 도면대로 인정하고 🔴만 확인 중 (눌러서 변경)' : (st.autoLv==='g' ? '🟢만 건너뛰고 🟡🔴 확인 중 (눌러서 변경)' : '모든 방 확인 중 (눌러서 변경)');
+}
+$('autoTgl').addEventListener('click',()=>{ st.autoLv = st.autoLv==='gy' ? 'g' : (st.autoLv==='g' ? 'none' : 'gy'); initQueue(); render3(); });
+function render3Inner(){
+  const g=geom(st.shape), svg=$('svg3');
+  renderDraftBar();
+  drawBase(svg,g);
+  svg.onclick=null;
+  $('dirLabelBox').classList.add('hide'); $('walkBox').classList.add('hide');
+  $('undo').classList.toggle('hide', st.sub==='pickStart' && !st.walks.length && !st.skipped.length);
+  $('endWalk').classList.toggle('hide', st.sub==='pickStart' && true);
+  updateProg();
+
+  // 이미 끝난 걷기들 (옅게)
+  st.walks.forEach(w=>drawWalkMarkers(svg,g,w,true));
+
+  if(st.sub==='pickStart'){
+    $('s3title').textContent='③ 어디서부터 걸을까요?';
+    $('s3hint').textContent = st.queue.length ? '지금 서 있는 곳(엘리베이터·계단·출입구)을 눌러요.' : '조사할 방이 더 없어요.';
+    drawAnchors(svg,g,{tap:a=>{ st.cur={anchor:a,dir:0,dirLabel:null,fixed:null,items:[],step:0}; st.pairNext=false; st.sub='pickDir'; render3(); }});
+    if(!st.queue.length){ $('endWalk').classList.remove('hide'); $('endWalk').textContent='결과 보기 ▶'; }
+    else { $('endWalk').classList.remove('hide'); $('endWalk').textContent='여기까지만 제출할래요'; }
+    return;
+  }
+  const a=st.cur.anchor;
+  if(st.sub==='pickDir'){
+    $('s3title').textContent='걷는 방향을 눌러요';
+    $('s3hint').textContent=anchorName(a)+'에서 걸어갈 방향의 화살표를 눌러요.';
+    drawAnchors(svg,g,{hl:a});
+    const p=pointAt(g,a.s);
+    [1,-1].forEach(d=>{
+      const avail = g.closed ? g.L : (d>0 ? g.L-a.s : a.s);
+      if(avail<20) return;
+      const q=pointAt(g,a.s+d*26), ang=Math.atan2(q.y-p.y,q.x-p.x)*180/Math.PI;
+      const grp=sv('g',{transform:`translate(${q.x},${q.y})`,style:'cursor:pointer'},svg);
+      sv('circle',{r:17,fill:'var(--pri)'},grp);
+      sv('path',{d:'M-6 -7 L7 0 L-6 7 Z',fill:'#fff',transform:`rotate(${ang})`},grp);
+      grp.addEventListener('click',e=>{ e.stopPropagation(); st.cur.dir=d; st.sub='pickLabel'; render3(); });
+    });
+    $('endWalk').textContent='취소'; $('endWalk').classList.remove('hide');
+    return;
+  }
+  if(st.sub==='pickLabel'){
+    $('s3title').textContent='어느 쪽으로 가는 거예요?';
+    $('s3hint').textContent='그 방향으로 가려면 '+anchorName(a)+'에서 내려 어디로 가나요?';
+    drawAnchors(svg,g,{hl:a});
+    drawDirArrow(svg,g);
+    const box=$('dirChips'); box.innerHTML='';
+    const one = st.sides==='one';
+    const tryStart=()=>{ if(st.cur.dirLabel && (!one || st.cur.fixed)){ st.sub='walking'; computeStep(g); render3(); } };
+    DIR_LABELS.forEach(l=>{ const b=document.createElement('button'); b.type='button'; b.className='chip'+(st.cur.dirLabel===l?' on':''); b.textContent=l;
+      b.addEventListener('click',()=>{ st.cur.dirLabel=l; if(one) render3(); else tryStart(); }); box.appendChild(b); });
+    $('sideTxt').classList.toggle('hide',!one); $('sideChips').classList.toggle('hide',!one);
+    const sc=$('sideChips'); sc.innerHTML='';
+    if(one) [['L','왼쪽'],['R','오른쪽']].forEach(([v,t])=>{ const b=document.createElement('button'); b.type='button'; b.className='chip'+(st.cur.fixed===v?' on':''); b.textContent=t;
+      b.addEventListener('click',()=>{ st.cur.fixed=v; if(st.cur.dirLabel) tryStart(); else render3(); }); sc.appendChild(b); });
+    $('dirLabelBox').classList.remove('hide');
+    $('endWalk').textContent='취소'; $('endWalk').classList.remove('hide');
+    return;
+  }
+  // walking
+  $('s3title').textContent='걸으면서 방을 넘겨요';
+  const one = !!st.cur.fixed;
+  $('s3hint').textContent = one ? '방을 지나칠 때마다 ‘다음 방’을 눌러요. (밀어도 돼요) 위로 밀면 ‘모르겠어요’.'
+                                : '방이 왼쪽이면 ◀, 오른쪽이면 ▶ 로 슥 밀어요. 위로 밀면 ‘모르겠어요’. 마주 보는 방은 ‘맞은편’을 먼저 눌러요.';
+  $('bL').classList.toggle('hide',one); $('bR').classList.toggle('hide',one); $('bN').classList.toggle('hide',!one);
+  $('bN').textContent='다음 방 ('+(st.cur.fixed==='L'?'왼쪽':'오른쪽')+') ✓';
+  document.querySelector('.swbtns').classList.toggle('one',one);
+  const last=st.cur.items[st.cur.items.length-1];
+  const canPair = !one && last && !last.pair;
+  $('bP').classList.toggle('hide',!canPair);
+  $('bP').classList.toggle('pair',!!st.pairNext);
+  $('bP').textContent = st.pairNext ? '↔ 맞은편으로 기록할게요 (눌러서 취소)' : '↔ 앞 방('+(last?last.no:'')+'호)의 맞은편이에요';
+  const top0=st.queue[0]; $('bD').classList.toggle('hide',!draftMatch(top0));
+  drawAnchors(svg,g,{hl:a});
+  drawDirArrow(svg,g);
+  drawWalkMarkers(svg,g,st.cur,false);
+  $('walkBox').classList.remove('hide');
+  $('endWalk').textContent='여기까지 걸었어요'; $('endWalk').classList.remove('hide');
+  renderStack();
+}
+function drawDirArrow(svg,g){
+  const a=st.cur.anchor, d=st.cur.dir, p=pointAt(g,a.s), q=pointAt(g,a.s+d*26), ang=Math.atan2(q.y-p.y,q.x-p.x)*180/Math.PI;
+  const grp=sv('g',{transform:`translate(${q.x},${q.y})`},svg);
+  sv('circle',{r:12,fill:'var(--pri)',opacity:.9},grp);
+  sv('path',{d:'M-5 -6 L6 0 L-5 6 Z',fill:'#fff',transform:`rotate(${ang})`},grp);
+}
+function computeStep(g){
+  const a=st.cur.anchor, d=st.cur.dir, n=st.queue.length;
+  const avail = g.closed ? g.L : (d>0 ? g.L-a.s : a.s);
+  st.cur.step = Math.max(10, Math.min(46, avail/(n+1)));
+}
+function drawWalkMarkers(svg,g,w,faded){
+  const sg = w.step || 24;
+  let pos=0; const kc={L:0,R:0};
+  w.items.forEach((it,i)=>{
+    if(!it.pair) pos++;
+    const k=kc[it.side]++, off=24+(k%2)*22;   // 같은 쪽 이름표가 겹치지 않게 번갈아 띄움
+    const s = w.anchor.s + w.dir*sg*pos, p = pointAt(g,s);
+    const nx = p.ty*(w.dir), ny = -p.tx*(w.dir);   // 걷는 방향 기준 왼쪽 법선
+    const sgn = it.side==='L' ? 1 : -1, ox = p.x+nx*sgn*off, oy = p.y+ny*sgn*off;
+    const col = it.side==='L' ? 'var(--left)' : 'var(--right)';
+    const grp = sv('g',{opacity:faded?.55:1},svg);
+    sv('line',{x1:p.x,y1:p.y,x2:ox,y2:oy,stroke:col,'stroke-width':2},grp);
+    const lab=sv('g',{transform:`translate(${ox},${oy}) rotate(${-ROT})`},grp);
+    sv('rect',{x:-19,y:-11,width:38,height:22,rx:7,fill:col},lab);
+    const t=sv('text',{x:0,y:0,'text-anchor':'middle','dominant-baseline':'central','font-size':12,'font-weight':700,fill:'#fff'},lab); t.textContent=it.no;
+  });
+}
+function updateProg(){
+  const total=mission.rooms.length;
+  let done=st.skipped.length+autoRooms().length; st.walks.forEach(w=>done+=w.items.length); if(st.cur&&st.sub==='walking'&&!st.walks.includes(st.cur)) done+=st.cur.items.length;
+  const known = Math.max(0,done-st.skipped.length);
+  $('prog').style.width = Math.round(done/total*100)+'%';
+  $('progTxt').textContent = `${total}개 중 ${done}개 확인 · 방향 표시 ${known}개`;
+}
+
+// 카드 스택 + 스와이프
+function renderStack(){
+  const box=$('stack'); box.innerHTML='';
+  updateProg();
+  if(!st.queue.length){
+    box.innerHTML='<div class="rc"><div class="no">🎯</div><div class="nm">이 층의 방을 모두 확인했어요!<br>‘여기까지 걸었어요’를 눌러요</div></div>'; return;
+  }
+  if(st.queue[1]){ const b=makeCard(st.queue[1]); b.classList.add('back'); box.appendChild(b); }
+  const top=makeCard(st.queue[0]); box.appendChild(top); bindSwipe(top);
+}
+function draftHint(r){
+  const k=rc(r); if(!k) return '';
+  const lab = k==='g'?'🟢 도면 확실':(k==='y'?'🟡 확인 권장':'🔴 확인 필요');
+  if(r.side && st.cur && r.from===anchorName(st.cur.anchor) && r.dirLabel===st.cur.dirLabel) return lab+' · 도면: '+(r.side==='L'?'왼쪽':'오른쪽')+' 방'+(r.pair?' (맞은편)':'');
+  return lab+(r.side?' · 도면과 걷는 방향이 달라 직접 확인':' · 도면에 위치 정보 없음');
+}
+function makeCard(r){
+  const d=document.createElement('div'); d.className='rc '+rc(r);
+  const h=draftHint(r);
+  d.innerHTML=`<span class="tag l">◀ 왼쪽</span><span class="tag r">오른쪽 ▶</span><span class="tag s">모르겠어요</span>
+    <div class="no">${esc(r.no)}</div><div class="nm">${esc(r.name)}</div>${h?'<div class="cf">'+h+'</div>':''}`;
+  return d;
+}
+function draftMatch(r){ return !!(r && r.side && st.cur && r.from===anchorName(st.cur.anchor) && r.dirLabel===st.cur.dirLabel); }
+function bindSwipe(card){
+  let sx=0,sy=0,drag=false,dx=0,dy=0;
+  const tl=card.querySelector('.tag.l'), tr=card.querySelector('.tag.r'), ts=card.querySelector('.tag.s');
+  card.addEventListener('pointerdown',e=>{ drag=true; sx=e.clientX; sy=e.clientY; card.setPointerCapture(e.pointerId); card.style.transition='none'; });
+  card.addEventListener('pointermove',e=>{
+    if(!drag) return; dx=e.clientX-sx; dy=e.clientY-sy;
+    card.style.transform=`translate(${dx}px,${Math.min(0,dy)}px) rotate(${dx/18}deg)`;
+    tl.style.opacity = dx<-20 ? Math.min(1,-dx/90) : 0;
+    tr.style.opacity = dx>20 ? Math.min(1,dx/90) : 0;
+    ts.style.opacity = dy<-20 && Math.abs(dx)<60 ? Math.min(1,-dy/90) : 0;
+  });
+  function end(){
+    if(!drag) return; drag=false;
+    if(dx<-80) fly(card,-1,0,'L'); else if(dx>80) fly(card,1,0,'R'); else if(dy<-80 && Math.abs(dx)<60) fly(card,0,-1,'S');
+    else { card.style.transition='transform .2s'; card.style.transform=''; tl.style.opacity=tr.style.opacity=ts.style.opacity=0; }
+    dx=dy=0;
+  }
+  card.addEventListener('pointerup',end); card.addEventListener('pointercancel',end);
+}
+function fly(card,x,y,side){
+  card.style.transition='transform .22s, opacity .22s';
+  card.style.transform=`translate(${x*340}px,${y*300}px) rotate(${x*22}deg)`; card.style.opacity=0;
+  setTimeout(()=>commit(side),200);
+}
+function commit(side){
+  if(st.sub!=='walking'||!st.queue.length) return;
+  const r=st.queue.shift();
+  if(side!=='S' && st.cur.fixed) side=st.cur.fixed;
+  if(side==='S') st.skipped.push(r.no); else {
+    const last=st.cur.items[st.cur.items.length-1];
+    const pair = !!(st.pairNext && last && !last.pair && last.side!==side);
+    st.cur.items.push({no:r.no,name:r.name,side,pair});
+  }
+  st.pairNext=false;
+  st.cur.log = (st.cur.log||[]).concat([{no:r.no,side}]);
+  if(navigator.vibrate) try{navigator.vibrate(12)}catch(e){}
+  render3();
+}
+$('bL').addEventListener('click',()=>{ const c=document.querySelector('#stack .rc:not(.back)'); if(st.queue.length&&c) fly(c,-1,0,'L'); });
+$('bR').addEventListener('click',()=>{ const c=document.querySelector('#stack .rc:not(.back)'); if(st.queue.length&&c) fly(c,1,0,'R'); });
+$('bN').addEventListener('click',()=>{ const c=document.querySelector('#stack .rc:not(.back)'); if(st.queue.length&&c&&st.cur.fixed) fly(c,st.cur.fixed==='L'?-1:1,0,st.cur.fixed); });
+$('bP').addEventListener('click',()=>{ st.pairNext=!st.pairNext; render3(); });
+$('bD').addEventListener('click',()=>{ const r=st.queue[0], c=document.querySelector('#stack .rc:not(.back)'); if(!r||!c||!draftMatch(r)) return; st.pairNext=!!r.pair; fly(c,r.side==='L'?-1:1,0,r.side); });
+$('bS').addEventListener('click',()=>{ const c=document.querySelector('#stack .rc:not(.back)'); if(st.queue.length&&c) fly(c,0,-1,'S'); });
+
+$('undo').addEventListener('click',()=>{
+  if(st.sub==='walking' && st.cur && st.cur.log && st.cur.log.length){
+    const last=st.cur.log.pop(); st.pairNext=false;
+    if(last.side==='S') st.skipped=st.skipped.filter(n=>n!==last.no); else st.cur.items=st.cur.items.filter(i=>i.no!==last.no);
+    const room=mission.rooms.find(r=>r.no===last.no); st.queue.unshift(room); render3(); return;
+  }
+  if(st.sub!=='pickStart'){ st.cur=null; st.sub='pickStart'; render3(); return; }
+  // 직전 걷기 전체 취소
+  const w=st.walks.pop(); if(w){ w.items.forEach(i=>{}); initQueue(); render3(); }
+});
+$('endWalk').addEventListener('click',()=>{
+  if(st.sub==='pickDir'||st.sub==='pickLabel'){ st.cur=null; st.sub='pickStart'; render3(); return; }
+  if(st.sub==='walking'){
+    if(st.cur.items.length) st.walks.push(st.cur);
+    else if(st.cur.log) {}
+    st.cur=null; st.sub='pickStart'; initQueue();
+    if(!st.queue.length){ go(4); return; }
+    render3(); return;
+  }
+  go(4);   // pickStart 상태에서 "여기까지만 제출"/"결과 보기"
+});
+
+// ───────── 4단계: 결과 ─────────
+function ordinalSentences(){
+  const out=[];
+  st.walks.forEach(w=>{
+    const cnt={L:0,R:0};
+    w.items.forEach((it,i)=>{
+      cnt[it.side]++;
+      const prev=w.items[i-1];
+      out.push(`${anchorName(w.anchor)}에서 내려 <em>${w.dirLabel}</em>으로 가면, ${it.side==='L'?'왼':'오른'}편 <em>${cnt[it.side]}번째</em> → <b>${esc(it.no)}호</b> ${esc(it.name)}` + (it.pair&&prev?` <span class="small">(${esc(prev.no)}호 맞은편)</span>`:''));
+    });
+  });
+  return out;
+}
+function render4(){
+  const list=$('sent'); list.innerHTML='';
+  const s=ordinalSentences(), au=autoRooms();
+  if(!s.length && !au.length){ list.innerHTML='<li>아직 방향을 표시한 방이 없어요. ‘다시 걷기’를 눌러 주세요.</li>'; }
+  s.forEach(t=>{ const li=document.createElement('li'); li.innerHTML=t; list.appendChild(li); });
+  if(st.skipped.length){ const li=document.createElement('li'); li.className='small'; li.textContent='확인하지 못한 방: '+st.skipped.join(', ')+'호'; list.appendChild(li); }
+  $('nick').value = store('danyeobwa_nick')||'';
+  if(au.length){ const li=document.createElement('li'); li.className='small'; li.textContent='🟢🟡 도면 그대로 인정한 방 '+au.length+'개: '+au.map(r=>r.no).join(', ')+'호'; list.appendChild(li); }
+  $('done').classList.add('hide'); $('submit').disabled=!(s.length||au.length);
+  if(s.length||au.length) confetti();
+}
+$('again').addEventListener('click',()=>{ st.walks=[]; st.skipped=[]; st.cur=null; st.sub='pickStart'; initQueue(); go(3); });
+
+function confetti(){
+  const em=['🎉','✨','🧭','⭐','🎊'];
+  for(let i=0;i<22;i++){ const s=document.createElement('span'); s.className='conf'; s.textContent=em[i%em.length];
+    s.style.left=Math.random()*100+'vw'; s.style.animationDelay=(Math.random()*.6)+'s'; document.body.appendChild(s); setTimeout(()=>s.remove(),2800); }
+}
+
+function payload(){
+  const g=geom(st.shape);
+  return {
+    mission:mission.id, building:mission.building, floor:mission.floor, shape:st.shape,
+    anchors:st.anchors.map(a=>({type:a.type,name:anchorName(a),s:Math.round(a.s)})),
+    walks:st.walks.map(w=>({anchor:anchorName(w.anchor),dirLabel:w.dirLabel,
+      items:w.items.map(i=>({no:i.no,side:i.side,pair:i.pair?1:0}))})),
+    skipped:st.skipped, auto:autoRooms().map(r=>r.no+'|'+r.side+'|'+(r.pair?1:0)),
+    nick:$('nick').value.trim(), ts:new Date().toISOString()
+  };
+}
+$('submit').addEventListener('click',async()=>{
+  const p=payload(); store('danyeobwa_nick',p.nick);
+  const done=$('done'); done.classList.remove('hide');
+  if(!API_URL){
+    store('danyeobwa_floor_demo',JSON.stringify(p));
+    done.innerHTML='✅ <b>시연 모드</b>예요. 서버가 연결되면 여기서 바로 제출돼요.<br><span class="small">아래는 제출될 내용이에요.</span><pre class="json">'+esc(JSON.stringify(p,null,1))+'</pre>';
+    return;
+  }
+  $('submit').disabled=true; done.textContent='보내는 중…';
+  try{
+    const r=await fetch(API_URL+'?page=api&action=floorsubmit&data='+encodeURIComponent(JSON.stringify(p)));
+    const j=await r.json();
+    done.textContent = j.success ? '✅ 제출했어요. 검수 후 앱에 반영돼요. 고마워요!' : '⚠️ '+(j.error||'제출에 실패했어요.');
+  }catch(e){ done.textContent='⚠️ 네트워크 오류예요. 잠시 후 다시 눌러 주세요.'; }
+  $('submit').disabled=false;
+});
+
+// ───────── 시작 ─────────
+$('modeNote').textContent = API_URL ? '' : '시연 모드 · 샘플 호실로 동작하고 서버에는 보내지 않아요';
+(async function boot(){
+  if(API_URL){
+    try{
+      const j=await api('action=floormissions');
+      if(j.success && j.missions.length){ MISSIONS=j.missions; }
+      else { $('modeNote').textContent='열려 있는 미션이 아직 없어요.'; }
+    }catch(e){ $('modeNote').textContent='⚠️ 서버에 연결하지 못했어요.'; }
+    fillSel();
+    const want=new URLSearchParams(location.search).get('m'); const k=Math.max(0,MISSIONS.findIndex(m=>m.id===want));
+    sel.value=k; await pickMission(k);
+  } else { fillSel(); buildShapes(); go(1); }
+})();
+})();
+</script>
+<div style="position:fixed;bottom:4px;right:6px;font-size:10px;opacity:0.35;pointer-events:none;z-index:9999;color:inherit;">페이지 버전: 2610272249</div>
+</body>
+</html>
