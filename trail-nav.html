@@ -110,7 +110,7 @@
   <div id="mapRotate"><div id="map"></div></div>
 </div>
 <div id="headingDot">🔼</div>
-<div id="verTag">v2.2</div>
+<div id="verTag">v2.3 · 2610280020</div>
 
 <div id="topBar">
   <div id="appBrand">다녀봐!<br>강대강캠!<span class="subtitle">태동여지도</span></div>
@@ -220,6 +220,9 @@
   let edges = [], adjacency = {}, pathLinesLayer = null;
   let allNodeCoords = {}; // 모든 코드(정문/출입로/건물 등)의 좌표 — renderCoords()에서 채워짐, 출입로 탐색에 사용
   let remainingLine = null, traveledLine = null, traveledTrace = [], connectorLine = null;
+  // 실제 조사된 길을 따라가는 remainingLine과는 별개로, "지금 내 위치에서 목적지까지의 직선"을
+  // 항상 떠 있게 그려서 전체적인 방향감을 잃지 않게 함 — 경로 선택 여부와 무관하게 항상 표시.
+  let sightLine = null;
   let compassOn = false;
   let lockedRoute = null;      // 사용자가 목록/지도에서 고른 경로 하나 (고정) — 이후엔 이 경로 위에서만 진행 상황을 계산
   let awaitingChoice = false;  // 경로 후보들을 보여주고 선택을 기다리는 중인지
@@ -249,13 +252,14 @@
   }
 
   function loadWithToken() {
+    // buildingcoords는 이제 토큰 없이도 조회되는 공개 API라, 토큰 입력은 더는 필수가 아님 —
+    // 입력돼 있으면 그냥 함께 보내고(무시됨), 비어 있어도 그대로 불러온다.
     const t = extractToken(document.getElementById('tokenInput').value);
-    if (!t) { setStatus('토큰 또는 현황판 링크를 입력해줘.'); return; }
-    localStorage.setItem('trailnav_token', t);
+    if (t) localStorage.setItem('trailnav_token', t);
     setStatus('불러오는 중...');
     api({ action: 'buildingcoords', t: t }).then(function(res) {
       if (!res || !res.success) {
-        setStatus('불러오기 실패: ' + ((res && res.message) || '유효하지 않은 토큰'));
+        setStatus('불러오기 실패: ' + ((res && res.message) || '잠시 후 다시 시도해줘'));
         return;
       }
       document.getElementById('tokenBar').classList.add('hidden');
@@ -263,9 +267,23 @@
       renderCoords(res.coords || {});
       drawAllPaths();
       setStatus('지도를 불러왔어 (기록된 길 ' + edges.length + '개). 목적지를 선택해줘.');
+      applyDestFromUrl();
     }).catch(function() {
       setStatus('서버 연결에 실패했어. 잠시 후 다시 시도해줘.');
     });
+  }
+
+  // 다른 서비스(실습실 신청 시스템 등)에서 "이 실습실 가는 길" 식으로 바로 연결할 때 쓰는 진입점.
+  // ?dest=코드 로 들어오면 목적지를 자동으로 고르고, 위치추적도 자동으로 시작한다.
+  function applyDestFromUrl() {
+    const qsDest = new URLSearchParams(location.search).get('dest');
+    if (!qsDest) return;
+    const sel = document.getElementById('destSelect');
+    const hasOption = Array.prototype.some.call(sel.options, function(o) { return o.value === qsDest; });
+    if (!hasOption) { setStatus('목적지 코드(' + qsDest + ')를 찾지 못했어.'); return; }
+    sel.value = qsDest;
+    sel.dispatchEvent(new Event('change'));
+    if (!watchId) toggleTracking();
   }
 
   // 지점을 찍을 좌표가 없어도(정문 샘플 3회 미만 등) 기록된 길의 끝점에 등장하면
@@ -475,6 +493,23 @@
     traveledTrace = [];
   }
 
+  // 목적지까지의 직선 점선 — 조사된 길을 따라가는 안내선과 별개로 항상 그려서 유지함.
+  // 목적지가 없거나 좌표를 모르면 지운다.
+  function updateSightLine(lat, lng) {
+    const dll = destCode ? allNodeCoords[destCode] : null;
+    if (!dll) {
+      if (sightLine) { map.removeLayer(sightLine); sightLine = null; }
+      return;
+    }
+    const latlngs = [[lat, lng], dll];
+    if (!sightLine) {
+      sightLine = L.polyline(latlngs, { color: '#f3d98d', weight: 3, opacity: 0.85, dashArray: '6 8' }).addTo(map);
+    } else {
+      sightLine.setLatLngs(latlngs);
+    }
+    sightLine.bringToFront();
+  }
+
   document.getElementById('destSelect').addEventListener('change', function() {
     const code = this.value;
     const coords = JSON.parse(this.getAttribute('data-coords') || '{}');
@@ -482,7 +517,11 @@
     clearRouteLines();
     resetRouteChoice();
     destCode = code;
-    if (!code) return;
+    if (!code) {
+      if (sightLine) { map.removeLayer(sightLine); sightLine = null; }
+      return;
+    }
+    if (lastRawPos) updateSightLine(lastRawPos.lat, lastRawPos.lng);
     const ll = coords[code];
     if (ll) {
       destMarker = L.circleMarker(ll, { radius: 9, color: '#f6b5ae', weight: 3, fillColor: '#dc3545', fillOpacity: 0.9 })
@@ -977,6 +1016,7 @@
       watchId = null;
       btn.textContent = '내 위치 추적 시작';
       btn.classList.remove('secondary');
+      if (sightLine) { map.removeLayer(sightLine); sightLine = null; }
       return;
     }
     if (!navigator.geolocation) { setStatus('이 브라우저는 위치추적을 지원하지 않아.'); return; }
@@ -1012,6 +1052,7 @@
     lastRawPos = { lat: rawLat, lng: rawLng };
     lastAcc = acc;
     const destName = NAMES[destCode] || destCode;
+    updateSightLine(rawLat, rawLng);
 
     // 아직 경로를 고르지 않았으면: 원 GPS 위치만 표시하고(네트워크 전체에서 가장 가까운 선을 매번 다시 찾지 않음 — 그게 흔들림/경로가 왔다갔다하는 원인이었음),
     // 목적지가 있으면 경로 목록을 띄움.
@@ -1178,13 +1219,12 @@
 
   initMap();
   setUiVisible(true); // 아이콘 모양/위치를 현재 상태(열림)에 맞춰 초기화
-  // 쿼리스트링(?t=) 또는 이전에 썼던 토큰을 자동으로 채워줌
+  // buildingcoords가 공개 API로 바뀌어서 토큰 없이도 항상 바로 불러옴 (예전 링크의 ?t=는 있으면 같이 보낼 뿐 필수는 아님)
   const qsToken = new URLSearchParams(location.search).get('t');
   const savedToken = (function(){ try { return localStorage.getItem('trailnav_token'); } catch(e){ return null; } })();
-  if (qsToken || savedToken) {
-    document.getElementById('tokenInput').value = qsToken || savedToken;
-    loadWithToken();
-  }
+  document.getElementById('tokenInput').value = qsToken || savedToken || '';
+  document.getElementById('tokenBar').classList.add('hidden');
+  loadWithToken();
 </script>
 </body>
 </html>
