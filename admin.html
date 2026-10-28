@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>다녀봐!강대강캠! 관리자</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 16px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 10px; flex-wrap: wrap;
+    padding: 14px 4px; margin-bottom: 4px;
+  }
+  .topbar h1 { font-size: 18px; font-weight: 700; }
+  .topbar .sub { font-size: 12px; color: var(--t3); margin-top: 2px; }
+  .topbar-right { display: flex; align-items: center; gap: 10px; font-size: 12.5px; color: var(--t3); }
+  .logout-btn {
+    border: 1px solid var(--bd2); background: var(--surface-solid); color: var(--t2);
+    padding: 7px 12px; border-radius: 6px; font-size: 12.5px; cursor: pointer; font-family: inherit;
+  }
+  .logout-btn:hover { background: var(--surface-2); }
+
+  .card {
+    background: var(--surface-solid);
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid var(--bd1);
+    box-shadow: 0 2px 8px rgba(var(--sh), calc(.06 * var(--shk)));
+    margin-bottom: 16px;
+  }
+  .section-title { font-size: 14px; font-weight: 700; color: var(--knu-primary); margin-bottom: 4px; }
+  .section-desc { font-size: 12px; color: var(--t3); margin-bottom: 14px; }
+
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+  .tab {
+    padding: 10px 16px; border: 1px solid var(--bd2); border-radius: 6px;
+    background: var(--surface-solid); cursor: pointer; font-size: 13px; font-family: inherit;
+  }
+  .tab.active { background: var(--brand-solid); color: white; border-color: var(--knu-primary); font-weight: 600; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  .field { margin-bottom: 12px; min-width: 0; }
+  .field label { display: block; font-size: 12.5px; font-weight: 500; color: var(--t2); margin-bottom: 5px; }
+  input[type="text"], input[type="email"], input[type="number"], select, textarea {
+    width: 100%; max-width: 100%; padding: 9px 11px; border: 1px solid var(--bd2); border-radius: 6px;
+    font-size: 13.5px; font-family: inherit; background: var(--surface-solid); color: var(--text);
+    box-sizing: border-box; min-width: 0;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--knu-primary); box-shadow: 0 0 0 2px var(--knu-primary-soft);
+  }
+  textarea { resize: vertical; min-height: 90px; font-family: 'Courier New', monospace; font-size: 12.5px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .row > .field { flex: 1; min-width: 120px; }
+  .row > .field.shrink { flex: 0 0 auto; min-width: 90px; }
+
+  .btn {
+    display: inline-block; padding: 9px 16px; border: none; border-radius: 6px;
+    font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .btn-primary { background: var(--brand-solid); color: white; }
+  .btn-primary:hover { background: var(--knu-primary-dark); }
+  .btn-primary:disabled { background: #999; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface-2); color: var(--knu-primary); }
+  .btn-secondary:hover { background: var(--w16); }
+  .btn-danger { background: transparent; color: var(--danger-line); border: 1px solid var(--danger-line); }
+  .btn-danger:hover { background: var(--danger-bg); }
+  .btn-sm { padding: 5px 10px; font-size: 11.5px; }
+
+  table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.data-table th, table.data-table td {
+    text-align: left; padding: 8px 8px; border-bottom: 1px solid var(--bd1); vertical-align: top;
+  }
+  table.data-table th { color: var(--t3); font-weight: 600; font-size: 11.5px; white-space: nowrap; }
+  table.data-table tr:hover td { background: var(--w04); }
+  .table-wrap { overflow-x: auto; margin-bottom: 10px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10.5px; font-weight: 600; }
+  .pill.on { background: var(--ok-bg); color: var(--ok-text); }
+  .pill.off { background: var(--danger-bg); color: var(--danger-text); }
+  .muted { color: var(--t4); font-size: 11.5px; }
+  .empty-note { text-align: center; color: var(--t4); font-size: 12.5px; padding: 20px 0; }
+
+  .admin-mgmt-list { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+  .admin-mgmt-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border: 1px solid var(--bd1); border-radius: 8px; background: var(--surface-solid); flex-wrap: wrap;
+  }
+  .admin-mgmt-info { flex: 1; min-width: 0; }
+  .admin-mgmt-name { font-size: 14px; font-weight: 600; color: var(--t1); }
+  .admin-mgmt-email { font-size: 12px; color: var(--t3); }
+  .admin-mgmt-meta { font-size: 11px; color: var(--t4); margin-top: 2px; }
+  .admin-role-badge { padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .admin-role-badge.super { background: var(--brand-solid); color: white; }
+  .admin-role-badge.normal { background: var(--surface-2); color: var(--knu-primary); }
+
+  .reauth-box { max-width: 340px; margin: 10px auto; text-align: center; }
+  .reauth-icon {
+    width: 56px; height: 56px; background: var(--brand-solid); color: white; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; font-size: 24px;
+  }
+  .reauth-title { font-size: 17px; font-weight: 700; color: var(--knu-primary); margin-bottom: 6px; }
+  .reauth-subtitle { font-size: 12.5px; color: var(--t3); line-height: 1.6; margin-bottom: 20px; }
+  .reauth-box .field { text-align: left; margin-bottom: 14px; }
+  .reauth-box .code-input { letter-spacing: 0.5em; font-size: 22px !important; text-align: center; font-weight: 600; padding: 12px !important; }
+  .reauth-box .resend-link { text-align: center; margin-top: 12px; font-size: 13px; }
+  .reauth-box .resend-link a { color: var(--knu-primary); text-decoration: none; cursor: pointer; font-weight: 500; }
+  .reauth-box .resend-link a:hover { text-decoration: underline; }
+
+  .msg { padding: 10px 12px; border-radius: 6px; margin: 10px 0; font-size: 12.5px; white-space: pre-line; }
+  .msg-success { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-bd); }
+  .msg-error { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-bd); }
+  .msg-info { background: var(--surface-2); color: var(--knu-primary); border: 1px solid var(--bd2); }
+
+  .footer { text-align: center; font-size: 11px; color: var(--t4); padding: 16px 0; }
+
+  /* 처리 중 오버레이 */
+  .overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.55); z-index: 9999; align-items: center; justify-content: center;
+    backdrop-filter: blur(2px);
+  }
+  .overlay.show { display: flex; animation: fadeIn 0.2s; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .overlay-box {
+    background: var(--surface-pop); padding: 32px 40px; border-radius: 12px; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3); max-width: 320px; color: var(--text);
+  }
+  .overlay-spinner {
+    width: 56px; height: 56px; border: 5px solid var(--w15); border-top-color: var(--knu-primary);
+    border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .overlay-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .overlay-msg { font-size: 12.5px; color: var(--w65); }
+
+  .result-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10000;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .result-modal.show { display: flex; }
+  .result-box {
+    background: var(--surface-pop); border-radius: 14px; padding: 28px; max-width: 360px; width: 100%;
+    text-align: center; box-shadow: 0 12px 40px rgba(var(--sh),calc(0.5 * var(--shk))); color: var(--text);
+  }
+  .result-icon {
+    width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 14px; font-size: 24px; font-weight: 700;
+  }
+  .result-icon.success { background: var(--ok-bg); color: var(--ok-strong); }
+  .result-icon.error { background: var(--danger-bg); color: var(--danger-line); }
+  .result-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .result-title.success { color: var(--ok-strong); }
+  .result-title.error { color: var(--danger-line); }
+  .result-content { font-size: 13px; color: var(--t2); background: var(--w06); border-radius: 8px; padding: 12px; margin-bottom: 18px; white-space: pre-line; }
+  .result-btn { width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .result-btn.success { background: var(--ok-strong); color: #10233d; }
+  .result-btn.error { background: var(--danger-line); color: #3a0a06; }
+
+@media (max-width: 600px) {
+  body { padding: 8px; }
+  .card { padding: 14px; }
+}
+</style>
+
+<style id="labThemeCss">
+:root, :root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #1b1d21;
+  --surface-pop: #272a30;
+  --surface-deep: #202328;
+  --surface-solid: #23262b;
+  --text: #e9e7e2;
+  --accent: #8ab4f8;
+  --accent-soft: #b3cdfa;
+  --accent-strong: #4f86d8;
+  --on-accent: #10233d;
+  --warn-text: #f3d98d;
+  --ok-text: #b5e8c4;
+  --danger-text: #f6b5ae;
+  --muted-text: #c7ced3;
+  --danger-line: #f28b82;
+  --line-soft: rgba(255,255,255,.10);
+  --t1: #e9e7e2; --t2: #cdcbc6; --t3: #a8a6a1; --t4: #84827e;
+  --surface-1: #2a2d33; --surface-2: #30343b;
+  --bd1: #3a3e45; --bd2: #4a4f57;
+  --brand-solid: #3f78c8;
+  --warn-bg: rgba(245,166,35,.16); --danger-bg: rgba(248,113,113,.16); --ok-bg: rgba(74,222,128,.14);
+  --ok-strong: #4ade80;
+  --warn-bd: rgba(245,166,35,.38); --danger-bd: rgba(248,113,113,.38); --ok-bd: rgba(74,222,128,.34);
+  --sh: 0,0,0;
+  --shk: 1;
+  --knu-primary: #8ab4f8;
+  --knu-primary-dark: #4f86d8;
+  --knu-primary-light: #b3cdfa;
+  --knu-primary-soft: rgba(138,180,248,.25);
+  --knu-bg-tint: rgba(255,255,255,.06);
+  --knu-bg-soft: rgba(255,255,255,.08);
+  --knu-border-light: rgba(255,255,255,.18);
+  --w03:rgba(255,255,255,0.03); --w04:rgba(255,255,255,0.04); --w05:rgba(255,255,255,0.05);
+  --w06:rgba(255,255,255,0.06); --w07:rgba(255,255,255,0.07); --w08:rgba(255,255,255,0.08);
+  --w10:rgba(255,255,255,0.1); --w12:rgba(255,255,255,0.12); --w14:rgba(255,255,255,0.14);
+  --w15:rgba(255,255,255,0.15); --w16:rgba(255,255,255,0.16); --w18:rgba(255,255,255,0.18);
+  --w20:rgba(255,255,255,0.2); --w22:rgba(255,255,255,0.22); --w25:rgba(255,255,255,0.25);
+  --w30:rgba(255,255,255,0.3); --w35:rgba(255,255,255,0.35); --w40:rgba(255,255,255,0.4);
+  --w45:rgba(255,255,255,0.45); --w50:rgba(255,255,255,0.5); --w55:rgba(255,255,255,0.55);
+  --w60:rgba(255,255,255,0.6); --w65:rgba(255,255,255,0.65); --w70:rgba(255,255,255,0.7);
+  --w75:rgba(255,255,255,0.75); --w80:rgba(255,255,255,0.8); --w85:rgba(255,255,255,0.85); --w90:rgba(255,255,255,0.9);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f5f2;
+  --surface-pop: #ffffff;
+  --surface-deep: #ece9e3;
+  --surface-solid: #ffffff;
+  --text: #26282c;
+  --accent: #1d5fae;
+  --accent-soft: #2a6bb8;
+  --accent-strong: #154a8c;
+  --on-accent: #ffffff;
+  --warn-text: #8a5a00;
+  --ok-text: #1b6b3a;
+  --danger-text: #a8322a;
+  --muted-text: #5a6670;
+  --danger-line: #c0392b;
+  --line-soft: rgba(40,36,28,.10);
+  --t1: #26282c; --t2: #3f4247; --t3: #5f6267; --t4: #8b8e93;
+  --surface-1: #f4f2ed; --surface-2: #ebe8e1;
+  --bd1: #e4e1da; --bd2: #d2cec5;
+  --brand-solid: #1d5fae;
+  --warn-bg: #fff4dc; --danger-bg: #fde8e6; --ok-bg: #e4f4e8;
+  --ok-strong: #15803d;
+  --warn-bd: #f0d28a; --danger-bd: #f0b9b4; --ok-bd: #a9d6b6;
+  --sh: 60,50,30;
+  --shk: .35;
+  --knu-primary: #1d5fae;
+  --knu-primary-dark: #154a8c;
+  --knu-primary-light: #2a6bb8;
+  --knu-primary-soft: rgba(29,95,174,.18);
+  --knu-bg-tint: #edeae4;
+  --knu-bg-soft: #f1efe9;
+  --knu-border-light: #dcd8d0;
+  --w03:rgba(40,36,28,0.025); --w04:rgba(40,36,28,0.034); --w05:rgba(255,255,255,0.78);
+  --w06:rgba(255,255,255,0.82); --w07:rgba(255,255,255,0.86); --w08:rgba(255,255,255,0.90);
+  --w10:rgba(40,36,28,0.06); --w12:rgba(40,36,28,0.09); --w14:rgba(40,36,28,0.11);
+  --w15:rgba(40,36,28,0.12); --w16:rgba(40,36,28,0.13); --w18:rgba(40,36,28,0.14);
+  --w20:rgba(40,36,28,0.16); --w22:rgba(40,36,28,0.18); --w25:rgba(40,36,28,0.20);
+  --w30:rgba(40,36,28,.24); --w35:rgba(38,40,44,0.46); --w40:rgba(38,40,44,0.52);
+  --w45:rgba(38,40,44,0.56); --w50:rgba(38,40,44,0.60); --w55:rgba(38,40,44,0.64);
+  --w60:rgba(38,40,44,0.68); --w65:rgba(38,40,44,0.72); --w70:rgba(38,40,44,0.76);
+  --w75:rgba(38,40,44,0.80); --w80:rgba(38,40,44,0.85); --w85:rgba(38,40,44,0.88); --w90:rgba(38,40,44,0.92);
+}
+html { background: var(--bg); }
+select option, select optgroup, option, optgroup { background-color: var(--surface-pop) !important; color: var(--text) !important; }
+select optgroup { color: var(--t3) !important; font-weight: 700; font-style: normal; }
+#labThemeBtn {
+  position: fixed; left: 14px; bottom: 14px; z-index: 99999;
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 1px solid var(--w22); background: var(--surface-pop); color: var(--text);
+  font-size: 18px; line-height: 1; cursor: pointer; padding: 0;
+  box-shadow: 0 2px 10px rgba(var(--sh), calc(.35 * var(--shk)));
+  display: flex; align-items: center; justify-content: center;
+  opacity: .85; transition: opacity .15s, transform .15s;
+}
+#labThemeBtn:hover { opacity: 1; transform: scale(1.06); }
+@media print { #labThemeBtn { display: none !important; } }
+</style>
+<script>
+(function () {
+  var KEY = 'lab_theme', mode = 'dark';
+  try { mode = localStorage.getItem(KEY) || 'dark'; } catch (e) {}
+  if (mode !== 'light' && mode !== 'dark') mode = 'dark';
+  function apply(m) {
+    mode = m;
+    document.documentElement.setAttribute('data-theme', m);
+    var b = document.getElementById('labThemeBtn');
+    if (b) {
+      b.textContent = (m === 'dark') ? '☀️' : '🌙';
+      b.title = (m === 'dark') ? '화이트 테마로 전환' : '다크 테마로 전환';
+      b.setAttribute('aria-label', b.title);
+    }
+  }
+  var beforeMode = null;
+  window.addEventListener('beforeprint', function () { beforeMode = mode; document.documentElement.setAttribute('data-theme', 'light'); });
+  window.addEventListener('afterprint', function () { if (beforeMode) document.documentElement.setAttribute('data-theme', beforeMode); beforeMode = null; });
+  window.toggleLabTheme = function () {
+    var next = (mode === 'dark') ? 'light' : 'dark';
+    try { localStorage.setItem(KEY, next); } catch (e) {}
+    apply(next);
+  };
+  apply(mode);
+  function mount() {
+    if (document.getElementById('labThemeBtn') || !document.body) return;
+    var b = document.createElement('button');
+    b.id = 'labThemeBtn'; b.type = 'button';
+    b.onclick = window.toggleLabTheme;
+    document.body.appendChild(b);
+    apply(mode);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();
+})();
+</script>
+</head>
+<body>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-box">
+    <div class="overlay-spinner"></div>
+    <div class="overlay-title">처리 중입니다</div>
+    <div class="overlay-msg">잠시만 기다려 주세요.</div>
+  </div>
+</div>
+
+<div class="result-modal" id="resultModal">
+  <div class="result-box">
+    <div class="result-icon" id="resultIcon"></div>
+    <div class="result-title" id="resultTitle"></div>
+    <div class="result-content" id="resultContent"></div>
+    <button class="result-btn" id="resultBtn" onclick="closeResultModal()">확인</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="topbar">
+    <div>
+      <h1>🧭 다녀봐!강대강캠! 관리자</h1>
+      <div class="sub">건물 좌표·보행경로·층별 도면 데이터를 관리합니다</div>
+    </div>
+    <div class="topbar-right">
+      <span id="adminEmail"></span>
+      <button class="logout-btn" onclick="doLogout()">로그아웃</button>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="buildings" onclick="changeTab('buildings')">🏢 건물 좌표/이름</button>
+    <button class="tab" data-tab="paths" onclick="changeTab('paths')">🚶 보행경로</button>
+    <button class="tab" data-tab="floors" onclick="changeTab('floors')">🗺️ 층별 도면</button>
+    <button class="tab" data-tab="accounts" onclick="changeTab('accounts')">👤 관리자 계정</button>
+  </div>
+
+  <!-- ===== 건물 좌표/이름 ===== -->
+  <div class="tab-panel active" id="panel-buildings">
+    <div class="card">
+      <div class="section-title">조사대상 목록</div>
+      <div class="section-desc">코드·이름·구분을 수정하거나 새 지점을 추가합니다. 좌표는 현장조사(survey.html)로 수집된 GPS 기록에서 자동 계산되며, 아래 표의 "정문 좌표" 칸에 함께 표시됩니다.</div>
+      <div id="buildingsMsg"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="buildingsTable">
+          <thead><tr>
+            <th>코드</th><th>이름</th><th>구분</th><th>설명</th><th>사용</th><th>정문 좌표(샘플수)</th><th></th>
+          </tr></thead>
+          <tbody id="buildingsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-note" id="buildingsEmpty" style="display:none;">등록된 조사대상이 없습니다.</div>
+
+      <div class="section-title" style="margin-top:20px;">새 지점 추가 / 수정</div>
+      <div class="row">
+        <div class="field shrink"><label>코드</label><input type="text" id="bCode" placeholder="예: N17" maxlength="10"></div>
+        <div class="field"><label>이름</label><input type="text" id="bName" placeholder="예: 생명과학2호관" maxlength="30"></div>
+        <div class="field shrink">
+          <label>구분</label>
+          <select id="bKind">
+            <option value="건물">건물</option>
+            <option value="공간">공간</option>
+            <option value="게이트">게이트</option>
+            <option value="등산로">등산로</option>
+          </select>
+        </div>
+      </div>
+      <div class="row">
+        <div class="field"><label>설명</label><input type="text" id="bDesc" placeholder="(선택) 비고" maxlength="100"></div>
+        <div class="field shrink">
+          <label>사용</label>
+          <select id="bUse"><option value="Y">사용</option><option value="N">사용 안 함</option></select>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="saveBuildingTarget()">저장</button>
+      <button class="btn btn-secondary" onclick="resetBuildingForm()" style="margin-left:6px;">초기화</button>
+    </div>
+  </div>
+
+  <!-- ===== 보행경로 ===== -->
+  <div class="tab-panel" id="panel-paths">
+    <div class="card">
+      <div class="section-title">기록된 보행경로</div>
+      <div class="section-desc">survey.html에서 걸으며 기록된 길 목록입니다. 잘못 기록된 길은 "사용 안 함"으로 끄거나 완전히 삭제할 수 있습니다. 사용을 끈 길은 지도·길찾기에서 더 이상 쓰이지 않습니다.</div>
+      <div id="pathsMsg"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="pathsTable">
+          <thead><tr>
+            <th>기록일시</th><th>조사자</th><th>출발→도착</th><th>길이</th><th>점수</th><th>고도</th><th>사용</th><th></th>
+          </tr></thead>
+          <tbody id="pathsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-note" id="pathsEmpty" style="display:none;">기록된 보행경로가 없습니다.</div>
+    </div>
+  </div>
+
+  <!-- ===== 층별 도면 ===== -->
+  <div class="tab-panel" id="panel-floors">
+    <div class="card">
+      <div class="section-title">저장된 층별 도면</div>
+      <div class="section-desc">평면도 파싱 채팅창에서 받은 JSON을 아래 칸에 붙여넣고 저장하면, navigate.html 길찾기에 바로 반영됩니다. 한 층(객체) 또는 여러 층(배열) JSON을 그대로 붙여넣으면 됩니다.</div>
+      <div id="floorsMsg"></div>
+      <div class="table-wrap">
+        <table class="data-table" id="floorsTable">
+          <thead><tr>
+            <th>미션</th><th>건물</th><th>층</th><th>라벨</th><th>수정일시</th><th>수정자</th><th></th>
+          </tr></thead>
+          <tbody id="floorsBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-note" id="floorsEmpty" style="display:none;">저장된 도면이 없습니다.</div>
+
+      <div class="section-title" style="margin-top:20px;">도면 JSON 붙여넣기</div>
+      <div class="field">
+        <textarea id="floorJsonInput" placeholder='평면도 파싱 결과 JSON을 여기에 붙여넣으세요. 예: [ { "mission": "D8-3", ... }, { "mission": "D8-4", ... } ]' style="min-height:160px;"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="saveFloorJson()">저장</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('floorJsonInput').value=''" style="margin-left:6px;">비우기</button>
+    </div>
+  </div>
+
+  <!-- ===== 관리자 계정 ===== -->
+  <div class="tab-panel" id="panel-accounts">
+    <div class="card" id="accountsLockCard" style="flex-direction:column;align-items:stretch;">
+      <div class="reauth-box">
+        <div class="reauth-icon">🔒</div>
+        <div class="reauth-title">본인 확인이 필요합니다</div>
+        <div class="reauth-subtitle">관리자 계정을 추가·삭제하려면, 로그인하신 이메일로 인증키를 한 번 더 확인합니다.<br>(컴퓨터실습실 운영시스템과 같은 관리자 계정을 씁니다)</div>
+        <button class="btn btn-primary" onclick="requestAccountsReauth()">인증키 발송</button>
+        <div id="accountsReauthArea" style="display:none;margin-top:18px;">
+          <div class="field">
+            <label>인증키</label>
+            <input type="text" id="accountsReauthCode" class="code-input" maxlength="6" inputmode="numeric" autocomplete="one-time-code" placeholder="000000">
+          </div>
+          <button class="btn btn-primary" onclick="confirmAccountsReauth()">인증 확인</button>
+          <div class="resend-link"><a onclick="requestAccountsReauth()">인증키 재발송</a></div>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="accountsCard" style="display:none;">
+      <div class="section-title">관리자 목록</div>
+      <div class="section-desc">최고관리자만 추가·삭제할 수 있습니다. (일반관리자로 로그인했다면 조회만 가능)</div>
+      <div id="accountsMsg"></div>
+      <div class="admin-mgmt-list" id="accountsList"></div>
+
+      <div class="section-title" style="margin-top:20px;" id="addAdminTitle">관리자 추가</div>
+      <div class="row">
+        <div class="field"><label>이메일</label><input type="email" id="newAdminEmail" placeholder="example@kangwon.ac.kr"></div>
+        <div class="field"><label>이름</label><input type="text" id="newAdminName" placeholder="홍길동"></div>
+      </div>
+      <button class="btn btn-primary" id="addAdminBtn" onclick="addAdminAccount()">추가</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    컴퓨터실습실 운영시스템과 같은 GAS 백엔드·관리자 계정을 공유합니다.<br>
+    <span style="opacity:0.6;">페이지 버전: 2610280900</span>
+  </div>
+</div>
+
+<script>
+  // ===== google.script.run → fetch(Web App API) 대체용 shim =====
+  (function() {
+    var API_URL = 'https://script.google.com/macros/s/AKfycbzdFualGxneSbdscvcDxOnIXqqYq2zoK6uZe_c10zog07Cew6F8HUzjNeN7cCnuZ9C0/exec?action=adminApi';
+    var WHITELIST = [
+      'verifySession', 'checkSuperAdmin', 'getAdminList', 'addAdmin', 'removeAdmin',
+      'requestAuthCode', 'verifyAuthCode', 'logout',
+      'getSurveyTargetsAdmin', 'upsertSurveyTarget', 'deleteSurveyTarget', 'getBuildingCoordsDetailAdmin',
+      'getSurveyPathsAdmin', 'setSurveyPathUse', 'deleteSurveyPath',
+      'getFloorLayoutsAdmin', 'getFloorLayoutAdmin', 'saveFloorLayout', 'deleteFloorLayout'
+    ];
+    function makeChain(successFn, failureFn) {
+      var chain = {
+        withSuccessHandler: function(fn) { return makeChain(fn, failureFn); },
+        withFailureHandler: function(fn) { return makeChain(successFn, fn); },
+        withUserObject: function() { return chain; }
+      };
+      WHITELIST.forEach(function(name) {
+        chain[name] = function() {
+          var args = Array.prototype.slice.call(arguments);
+          fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: name, args: args }) })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data && data.__ok) { if (successFn) successFn(data.result); }
+              else { if (failureFn) failureFn(new Error((data && data.message) || '서버 오류')); }
+            })
+            .catch(function(err) { if (failureFn) failureFn(err); });
+        };
+      });
+      return chain;
+    }
+    window.google = window.google || {};
+    window.google.script = { run: makeChain(null, null) };
+  })();
+  // ===== shim 끝 =====
+
+  let token = sessionStorage.getItem('admin_token');
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  window.addEventListener('load', function() {
+    token = sessionStorage.getItem('admin_token');
+    if (!token) { redirectToLogin(); return; }
+    document.getElementById('adminEmail').textContent = sessionStorage.getItem('admin_email') || '';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (!res || !res.valid) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
+        loadBuildings();
+      })
+      .withFailureHandler(function() { /* 네트워크 오류 — 일단 화면은 보여줌 */ loadBuildings(); })
+      .verifySession(token);
+  });
+
+  function redirectToLogin() { window.location.href = 'auth.html'; }
+
+  function doLogout() {
+    google.script.run.logout(token);
+    sessionStorage.removeItem('admin_token');
+    sessionStorage.removeItem('admin_email');
+    redirectToLogin();
+  }
+
+  function changeTab(name) {
+    document.querySelectorAll('.tab').forEach(function(el) { el.classList.toggle('active', el.dataset.tab === name); });
+    document.querySelectorAll('.tab-panel').forEach(function(el) { el.classList.toggle('active', el.id === 'panel-' + name); });
+    if (name === 'paths' && !pathsLoaded) loadPaths();
+    if (name === 'floors' && !floorsLoaded) loadFloors();
+    if (name === 'accounts' && accountsVerified) loadAccounts();
+  }
+
+  function showOverlay(msg) {
+    document.getElementById('overlay').classList.add('show');
+    if (msg) document.querySelector('.overlay-title').textContent = msg;
+  }
+  function hideOverlay() { document.getElementById('overlay').classList.remove('show'); }
+  function showResultModal(type, title, message) {
+    const modal = document.getElementById('resultModal');
+    document.getElementById('resultIcon').className = 'result-icon ' + type;
+    document.getElementById('resultTitle').className = 'result-title ' + type;
+    document.getElementById('resultBtn').className = 'result-btn ' + type;
+    document.getElementById('resultIcon').textContent = type === 'success' ? '✓' : '!';
+    document.getElementById('resultTitle').textContent = title;
+    document.getElementById('resultContent').textContent = message;
+    modal.classList.add('show');
+  }
+  function closeResultModal() { document.getElementById('resultModal').classList.remove('show'); }
+  function setMsg(elId, type, text) {
+    const el = document.getElementById(elId);
+    el.innerHTML = text ? '<div class="msg msg-' + type + '">' + escapeHtml(text) + '</div>' : '';
+  }
+  function expiredCheck(res, msgElId) {
+    if (res && res.expired) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return true; }
+    if (msgElId && res && res.message && !res.success) { setMsg(msgElId, 'error', res.message); }
+    return false;
+  }
+
+  // ========== 건물 좌표/이름 ==========
+  let buildingTargets = [], buildingCoordsDetail = {};
+  function loadBuildings() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (expiredCheck(res, 'buildingsMsg')) return;
+        if (!res.success) return;
+        buildingTargets = res.targets || [];
+        google.script.run
+          .withSuccessHandler(function(res2) {
+            buildingCoordsDetail = (res2 && res2.success) ? res2.coords : {};
+            renderBuildings();
+          })
+          .withFailureHandler(function() { renderBuildings(); })
+          .getBuildingCoordsDetailAdmin(token);
+      })
+      .withFailureHandler(function(err) { setMsg('buildingsMsg', 'error', '목록을 불러오지 못했습니다: ' + err.message); })
+      .getSurveyTargetsAdmin(token);
+  }
+  function renderBuildings() {
+    const body = document.getElementById('buildingsBody');
+    document.getElementById('buildingsEmpty').style.display = buildingTargets.length ? 'none' : 'block';
+    body.innerHTML = buildingTargets.map(function(t) {
+      const g = (buildingCoordsDetail[t.code] || {})['정문'];
+      const coordText = (g && g.used) ? (g.lat.toFixed(5) + ', ' + g.lng.toFixed(5) + ' (' + g.count + '개)')
+        : (g ? '샘플 부족 (' + g.count + '개)' : '—');
+      return '<tr>' +
+        '<td><strong>' + escapeHtml(t.code) + '</strong></td>' +
+        '<td>' + escapeHtml(t.name || '') + '</td>' +
+        '<td>' + escapeHtml(t.kind || '') + '</td>' +
+        '<td>' + escapeHtml(t.desc || '') + '</td>' +
+        '<td><span class="pill ' + (t.use ? 'on' : 'off') + '">' + (t.use ? '사용' : '중지') + '</span></td>' +
+        '<td class="muted">' + escapeHtml(coordText) + '</td>' +
+        '<td>' +
+          '<button class="btn btn-secondary btn-sm" onclick="editBuildingTarget(\'' + escapeHtml(t.code) + '\')">수정</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="removeBuildingTarget(\'' + escapeHtml(t.code) + '\')">삭제</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  function editBuildingTarget(code) {
+    const t = buildingTargets.find(function(x) { return x.code === code; });
+    if (!t) return;
+    document.getElementById('bCode').value = t.code;
+    document.getElementById('bName').value = t.name || '';
+    document.getElementById('bKind').value = t.kind || '건물';
+    document.getElementById('bDesc').value = t.desc || '';
+    document.getElementById('bUse').value = t.use ? 'Y' : 'N';
+    window.scrollTo({ top: document.getElementById('bCode').getBoundingClientRect().top + window.scrollY - 100, behavior: 'smooth' });
+  }
+  function resetBuildingForm() {
+    ['bCode','bName','bDesc'].forEach(function(id) { document.getElementById(id).value = ''; });
+    document.getElementById('bKind').value = '건물';
+    document.getElementById('bUse').value = 'Y';
+  }
+  function saveBuildingTarget() {
+    const code = document.getElementById('bCode').value.trim();
+    if (!code) { setMsg('buildingsMsg', 'error', '코드를 입력해주세요.'); return; }
+    showOverlay('저장 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'buildingsMsg')) return;
+        if (!res.success) { setMsg('buildingsMsg', 'error', res.message || '저장 실패'); return; }
+        setMsg('buildingsMsg', 'success', code + ' 저장되었습니다.');
+        resetBuildingForm();
+        loadBuildings();
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('buildingsMsg', 'error', err.message); })
+      .upsertSurveyTarget(token, code, document.getElementById('bName').value.trim(),
+        document.getElementById('bKind').value, document.getElementById('bDesc').value.trim(),
+        document.getElementById('bUse').value === 'Y');
+  }
+  function removeBuildingTarget(code) {
+    if (!confirm(code + ' 를 조사대상 목록에서 삭제할까요?\n(이미 저장된 GPS 기록·보행경로는 지워지지 않습니다)')) return;
+    showOverlay('삭제 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'buildingsMsg')) return;
+        setMsg('buildingsMsg', res.success ? 'success' : 'error', res.success ? code + ' 삭제되었습니다.' : (res.message || '삭제 실패'));
+        if (res.success) loadBuildings();
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('buildingsMsg', 'error', err.message); })
+      .deleteSurveyTarget(token, code);
+  }
+
+  // ========== 보행경로 ==========
+  let pathsLoaded = false;
+  function loadPaths() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        pathsLoaded = true;
+        if (expiredCheck(res, 'pathsMsg')) return;
+        if (!res.success) return;
+        renderPaths(res.paths || []);
+      })
+      .withFailureHandler(function(err) { setMsg('pathsMsg', 'error', '목록을 불러오지 못했습니다: ' + err.message); })
+      .getSurveyPathsAdmin(token);
+  }
+  function renderPaths(list) {
+    document.getElementById('pathsEmpty').style.display = list.length ? 'none' : 'block';
+    document.getElementById('pathsBody').innerHTML = list.map(function(p) {
+      const alt = (p.up !== '' && p.up != null) ? ('↑' + p.up + 'm ↓' + p.down + 'm') : '—';
+      return '<tr>' +
+        '<td class="muted">' + escapeHtml(p.date) + '</td>' +
+        '<td class="muted">' + escapeHtml(p.surveyor) + '</td>' +
+        '<td><strong>' + escapeHtml(p.from) + '</strong> → <strong>' + escapeHtml(p.to) + '</strong></td>' +
+        '<td>' + Math.round(p.meters) + 'm</td>' +
+        '<td class="muted">' + p.pts + '점</td>' +
+        '<td class="muted">' + alt + '</td>' +
+        '<td><span class="pill ' + (p.use ? 'on' : 'off') + '">' + (p.use ? '사용' : '중지') + '</span></td>' +
+        '<td>' +
+          '<button class="btn btn-secondary btn-sm" onclick="togglePathUse(' + p.row + ',' + (!p.use) + ')">' + (p.use ? '중지' : '다시 사용') + '</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="removePathRow(' + p.row + ')">삭제</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  function togglePathUse(row, use) {
+    showOverlay('반영 중...');
+    google.script.run
+      .withSuccessHandler(function(res) { hideOverlay(); if (expiredCheck(res, 'pathsMsg')) return; loadPaths(); })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('pathsMsg', 'error', err.message); })
+      .setSurveyPathUse(token, row, use);
+  }
+  function removePathRow(row) {
+    if (!confirm('이 보행경로 기록을 완전히 삭제할까요? 되돌릴 수 없습니다.')) return;
+    showOverlay('삭제 중...');
+    google.script.run
+      .withSuccessHandler(function(res) { hideOverlay(); if (expiredCheck(res, 'pathsMsg')) return; loadPaths(); })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('pathsMsg', 'error', err.message); })
+      .deleteSurveyPath(token, row);
+  }
+
+  // ========== 층별 도면 ==========
+  let floorsLoaded = false;
+  function loadFloors() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        floorsLoaded = true;
+        if (expiredCheck(res, 'floorsMsg')) return;
+        if (!res.success) return;
+        renderFloors(res.layouts || []);
+      })
+      .withFailureHandler(function(err) { setMsg('floorsMsg', 'error', '목록을 불러오지 못했습니다: ' + err.message); })
+      .getFloorLayoutsAdmin(token);
+  }
+  function renderFloors(list) {
+    document.getElementById('floorsEmpty').style.display = list.length ? 'none' : 'block';
+    document.getElementById('floorsBody').innerHTML = list.map(function(f) {
+      return '<tr>' +
+        '<td><strong>' + escapeHtml(f.mission) + '</strong></td>' +
+        '<td>' + escapeHtml(f.building) + '</td>' +
+        '<td>' + escapeHtml(f.floor) + '</td>' +
+        '<td>' + escapeHtml(f.label) + '</td>' +
+        '<td class="muted">' + escapeHtml(f.updatedAt) + '</td>' +
+        '<td class="muted">' + escapeHtml(f.updatedBy) + '</td>' +
+        '<td>' +
+          '<button class="btn btn-secondary btn-sm" onclick="loadFloorJsonIntoBox(\'' + escapeHtml(f.mission) + '\')">불러오기</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="removeFloorLayout(\'' + escapeHtml(f.mission) + '\')">삭제</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  function loadFloorJsonIntoBox(mission) {
+    showOverlay('불러오는 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'floorsMsg')) return;
+        if (!res.success) { setMsg('floorsMsg', 'error', res.message || '불러오기 실패'); return; }
+        try { document.getElementById('floorJsonInput').value = JSON.stringify(JSON.parse(res.json), null, 2); }
+        catch (e) { document.getElementById('floorJsonInput').value = res.json; }
+        document.getElementById('floorJsonInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('floorsMsg', 'error', err.message); })
+      .getFloorLayoutAdmin(token, mission);
+  }
+  function saveFloorJson() {
+    const raw = document.getElementById('floorJsonInput').value.trim();
+    if (!raw) { setMsg('floorsMsg', 'error', '저장할 JSON을 붙여넣어주세요.'); return; }
+    showOverlay('저장 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'floorsMsg')) return;
+        if (!res.success) { setMsg('floorsMsg', 'error', res.message || '저장 실패'); return; }
+        setMsg('floorsMsg', 'success', (res.saved || []).join(', ') + ' 저장되었습니다.');
+        loadFloors();
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('floorsMsg', 'error', err.message); })
+      .saveFloorLayout(token, raw);
+  }
+  function removeFloorLayout(mission) {
+    if (!confirm(mission + ' 도면을 삭제할까요?')) return;
+    showOverlay('삭제 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'floorsMsg')) return;
+        setMsg('floorsMsg', res.success ? 'success' : 'error', res.success ? mission + ' 삭제되었습니다.' : (res.message || '삭제 실패'));
+        if (res.success) loadFloors();
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('floorsMsg', 'error', err.message); })
+      .deleteFloorLayout(token, mission);
+  }
+
+  // ========== 관리자 계정 ==========
+  let accountsVerified = false;
+  function requestAccountsReauth() {
+    const email = sessionStorage.getItem('admin_email');
+    if (!email) { showResultModal('error', '오류', '로그인 정보를 확인할 수 없습니다.'); return; }
+    showOverlay('인증키 발송 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (res && res.success) {
+          document.getElementById('accountsReauthArea').style.display = 'block';
+          showResultModal('success', '인증키 발송됨', '메일함을 확인하고 6자리 인증키를 입력해주세요.');
+        } else {
+          showResultModal('error', '발송 실패', (res && res.message) || '실패했습니다.');
+        }
+      })
+      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
+      .requestAuthCode(email);
+  }
+  function confirmAccountsReauth() {
+    const email = sessionStorage.getItem('admin_email');
+    const code = document.getElementById('accountsReauthCode').value.trim();
+    if (!code || code.length !== 6) { showResultModal('error', '입력 확인', '6자리 인증키를 입력해주세요.'); return; }
+    showOverlay('확인 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (res && res.success) {
+          accountsVerified = true;
+          document.getElementById('accountsLockCard').style.display = 'none';
+          document.getElementById('accountsCard').style.display = 'block';
+          loadAccounts();
+        } else {
+          showResultModal('error', '인증 실패', (res && res.message) || '인증키가 올바르지 않습니다.');
+        }
+      })
+      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
+      .verifyAuthCode(email, code);
+  }
+  function loadAccounts() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        if (expiredCheck(res, 'accountsMsg')) return;
+        if (!res.success) { setMsg('accountsMsg', 'error', res.message || ''); document.getElementById('addAdminTitle').style.display='none'; document.getElementById('newAdminEmail').style.display='none'; document.getElementById('newAdminName').style.display='none'; document.getElementById('addAdminBtn').style.display='none'; return; }
+        renderAccounts(res.admins, res.myEmail);
+      })
+      .withFailureHandler(function(err) { setMsg('accountsMsg', 'error', '목록을 불러오지 못했습니다: ' + err.message); })
+      .getAdminList(token);
+  }
+  function renderAccounts(admins, myEmail) {
+    const list = document.getElementById('accountsList');
+    list.innerHTML = admins.map(function(a) {
+      const isSuper = a.role === '최고관리자';
+      const isMe = a.email.toLowerCase() === (myEmail || '').toLowerCase();
+      let html = '<div class="admin-mgmt-row"><div class="admin-mgmt-info">';
+      html += '<div class="admin-mgmt-name">' + escapeHtml(a.name || '(이름 없음)') + (isMe ? ' <span style="color:var(--t4);font-size:11px;">(나)</span>' : '') + '</div>';
+      html += '<div class="admin-mgmt-email">' + escapeHtml(a.email) + '</div>';
+      if (a.registeredAt) html += '<div class="admin-mgmt-meta">등록: ' + escapeHtml(a.registeredAt) + (a.registeredBy ? ' · ' + escapeHtml(a.registeredBy) : '') + '</div>';
+      html += '</div><span class="admin-role-badge ' + (isSuper ? 'super' : 'normal') + '">' + (isSuper ? '최고관리자' : '일반관리자') + '</span>';
+      if (!isSuper) html += ' <button class="btn btn-danger btn-sm" onclick="removeAdminAccount(\'' + escapeHtml(a.email) + '\')">삭제</button>';
+      html += '</div>';
+      return html;
+    }).join('');
+  }
+  function addAdminAccount() {
+    const email = document.getElementById('newAdminEmail').value.trim();
+    const name = document.getElementById('newAdminName').value.trim();
+    if (!email || !name) { setMsg('accountsMsg', 'error', '이메일과 이름을 모두 입력해주세요.'); return; }
+    showOverlay('추가 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'accountsMsg')) return;
+        setMsg('accountsMsg', res.success ? 'success' : 'error', res.message || '');
+        if (res.success) { document.getElementById('newAdminEmail').value=''; document.getElementById('newAdminName').value=''; loadAccounts(); }
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('accountsMsg', 'error', err.message); })
+      .addAdmin(token, email, name);
+  }
+  function removeAdminAccount(email) {
+    if (!confirm(email + ' 관리자를 삭제할까요?')) return;
+    showOverlay('삭제 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (expiredCheck(res, 'accountsMsg')) return;
+        setMsg('accountsMsg', res.success ? 'success' : 'error', res.message || '');
+        if (res.success) loadAccounts();
+      })
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('accountsMsg', 'error', err.message); })
+      .removeAdmin(token, email);
+  }
+</script>
+</body>
+</html>
