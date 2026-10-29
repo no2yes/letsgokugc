@@ -346,6 +346,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     <button class="tab" data-tab="paths" onclick="changeTab('paths')">🚶 보행경로</button>
     <button class="tab" data-tab="floors" onclick="changeTab('floors')">🗺️ 층별 도면</button>
     <button class="tab" data-tab="accounts" onclick="changeTab('accounts')">👤 관리자 계정</button>
+    <button class="tab" data-tab="pages" onclick="changeTab('pages')">📄 페이지 관리</button>
   </div>
 
   <!-- ===== 건물 좌표/이름 ===== -->
@@ -475,9 +476,23 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     </div>
   </div>
 
+  <!-- ===== 페이지 관리 ===== -->
+  <div class="tab-panel" id="panel-pages">
+    <div class="card">
+      <div class="section-title">사용 중인 모든 페이지</div>
+      <div class="section-desc">'다녀봐!강대강캠!'에서 실제로 쓰이는 정적 페이지 목록입니다. 주소를 눌러 복사할 수 있습니다.</div>
+      <div class="table-wrap">
+        <table class="data-table" id="pagesTable">
+          <thead><tr><th>페이지</th><th>설명</th><th>주소</th><th></th></tr></thead>
+          <tbody id="pagesBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="footer">
     컴퓨터실습실 운영시스템과 같은 GAS 백엔드·관리자 계정을 공유합니다.<br>
-    <span style="opacity:0.6;">페이지 버전: 2610292230</span>
+    <span style="opacity:0.6;">페이지 버전: 2610292241</span>
   </div>
 </div>
 
@@ -558,6 +573,40 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     if (name === 'paths' && !pathsLoaded) loadPaths();
     if (name === 'floors' && !floorsLoaded) loadFloors();
     if (name === 'accounts' && accountsVerified) loadAccounts();
+    if (name === 'pages' && !pagesRendered) renderPages();
+  }
+
+  // ========== 페이지 관리 ==========
+  const PAGES_BASE = 'https://no2yes.github.io/letsgokugc/';
+  const PAGES = [
+    { file: 'admin.html', name: '관리자 메뉴', desc: '지금 보고 있는 이 화면 (관리자 로그인 필요)' },
+    { file: 'auth.html', name: '관리자 로그인', desc: '관리자 인증키 로그인 화면' },
+    { file: 'indoor-nav.html', name: '실내 길찾기', desc: '전체 공개 — 층·호실 안내' },
+    { file: 'indoor-survey.html', name: '실내 조사', desc: '전체 공개 — 평면도 미션 수행용' },
+    { file: 'outdoor-nav.html', name: '실외 길찾기', desc: '전체 공개 — 건물까지 보행경로 안내' },
+    { file: 'outdoor-survey.html', name: '실외 위치 조사', desc: '조사자별 전용 링크 필요 — 고정 주소 없음. "건물 좌표/이름" 탭의 "건물 위치 조사 링크"에서 사람별로 발급' }
+  ];
+  let pagesRendered = false;
+  function renderPages() {
+    pagesRendered = true;
+    document.getElementById('pagesBody').innerHTML = PAGES.map(function(p, i) {
+      const url = PAGES_BASE + p.file;
+      const hasUrl = p.file !== 'outdoor-survey.html';
+      return '<tr>' +
+        '<td>' + escapeHtml(p.name) + '<br><span style="color:var(--t3);font-size:11px;">' + p.file + '</span></td>' +
+        '<td style="color:var(--t3);">' + escapeHtml(p.desc) + '</td>' +
+        '<td style="word-break:break-all;">' + (hasUrl ? escapeHtml(url) : '<span style="color:var(--t3);">—</span>') + '</td>' +
+        '<td>' + (hasUrl ? '<button class="btn btn-secondary btn-sm" id="pageCopyBtn' + i + '" onclick="copyPageUrl(\'' + url + '\',' + i + ')">복사</button>' : '') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+  function copyPageUrl(url, i) {
+    const btn = document.getElementById('pageCopyBtn' + i);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(function() {
+        if (btn) { const old = btn.textContent; btn.textContent = '복사됨'; setTimeout(function() { btn.textContent = old; }, 1200); }
+      }).catch(function() { if (btn) btn.textContent = '복사 실패'; });
+    }
   }
 
   function showOverlay(msg) {
