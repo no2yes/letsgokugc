@@ -6,6 +6,7 @@
 <title>다녀봐!강대강캠! 관리자</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { visibility: hidden; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', sans-serif;
     background: var(--bg);
@@ -476,7 +477,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 
   <div class="footer">
     컴퓨터실습실 운영시스템과 같은 GAS 백엔드·관리자 계정을 공유합니다.<br>
-    <span style="opacity:0.6;">페이지 버전: 2610292219</span>
+    <span style="opacity:0.6;">페이지 버전: 2610292230</span>
   </div>
 </div>
 
@@ -525,20 +526,24 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     });
   }
 
-  window.addEventListener('load', function() {
+  (function() {
     token = sessionStorage.getItem('admin_token');
     if (!token) { redirectToLogin(); return; }
     document.getElementById('adminEmail').textContent = sessionStorage.getItem('admin_email') || '';
     google.script.run
       .withSuccessHandler(function(res) {
         if (!res || !res.valid) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
+        document.documentElement.style.visibility = 'visible';
         loadBuildings();
       })
-      .withFailureHandler(function() { /* 네트워크 오류 — 일단 화면은 보여줌 */ loadBuildings(); })
+      .withFailureHandler(function() {
+        /* 네트워크 오류 — 세션 확인이 안 됐으니 화면을 보여주지 않고 로그인 화면으로 */
+        redirectToLogin();
+      })
       .verifySession(token);
-  });
+  })();
 
-  function redirectToLogin() { window.location.href = 'auth.html'; }
+  function redirectToLogin() { window.location.replace('auth.html'); }
 
   function doLogout() {
     google.script.run.logout(token);
