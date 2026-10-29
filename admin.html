@@ -352,6 +352,15 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     <div class="card">
       <div class="section-title">조사대상 목록</div>
       <div class="section-desc">코드·이름·구분을 수정하거나 새 지점을 추가합니다. 좌표는 현장조사(outdoor-survey.html)로 수집된 GPS 기록에서 자동 계산되며, 아래 표의 "정문 좌표" 칸에 함께 표시됩니다.</div>
+
+      <div class="section-title" style="margin-top:0;">건물 위치 조사 링크 (알바생용)</div>
+      <div class="section-desc">조사자 이름으로 링크를 만들면 그 이름으로 측정값이 기록됩니다.</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+        <button class="btn btn-primary btn-sm" onclick="surveyMakeLinkUI()">링크 만들기</button>
+        <button class="btn btn-secondary btn-sm" onclick="surveyListLinksUI()">목록</button>
+        <button class="btn btn-secondary btn-sm" onclick="surveyRevokeUI()">폐기</button>
+      </div>
+
       <div id="buildingsMsg"></div>
       <div class="table-wrap">
         <table class="data-table" id="buildingsTable">
@@ -467,7 +476,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 
   <div class="footer">
     컴퓨터실습실 운영시스템과 같은 GAS 백엔드·관리자 계정을 공유합니다.<br>
-    <span style="opacity:0.6;">페이지 버전: 2610280900</span>
+    <span style="opacity:0.6;">페이지 버전: 2610292003</span>
   </div>
 </div>
 
@@ -656,6 +665,60 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
       })
       .withFailureHandler(function(err) { hideOverlay(); setMsg('buildingsMsg', 'error', err.message); })
       .deleteSurveyTarget(token, code);
+  }
+
+  // ========== 건물 위치 조사 링크 (알바생용) ==========
+  function surveyMakeLinkUI() {
+    const name = prompt('조사자 이름을 입력하세요.\n(이 링크로 측정한 값이 이 이름으로 기록됩니다)');
+    if (name === null) return;
+    const nm = name.trim();
+    if (!nm) { showResultModal('error', '이름 필요', '조사자 이름을 입력해주세요.'); return; }
+    showOverlay('링크 만드는 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (res && res.expired) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
+        if (!res || !res.success) { showResultModal('error', '링크 실패', (res && res.message) || '실패했습니다.'); return; }
+        if (navigator.clipboard) navigator.clipboard.writeText(res.url).catch(() => {});
+        showResultModal('success', res.name + ' 님 조사용 링크',
+          (res.existing ? '이미 발급된 링크입니다.\n' : '') +
+          '아래 링크를 ' + res.name + ' 님에게 전달해주세요. (클립보드에 자동 복사됨)\n\n' + res.url);
+      })
+      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
+      .getSurveyLink(token, nm);
+  }
+
+  function surveyListLinksUI() {
+    showOverlay('목록 불러오는 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (res && res.expired) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
+        if (!res || !res.success) { showResultModal('error', '조회 실패', (res && res.message) || '실패했습니다.'); return; }
+        if (!res.links.length) { showResultModal('success', '조사용 링크 목록', '발급된 링크가 없습니다.'); return; }
+        showResultModal('success', '조사용 링크 목록 (' + res.links.length + '명)',
+          res.links.map(function(l) { return l.name + '\n' + l.url; }).join('\n\n'));
+      })
+      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
+      .listSurveyLinks(token);
+  }
+
+  function surveyRevokeUI() {
+    const name = prompt('링크를 폐기할 조사자 이름을 입력하세요.');
+    if (name === null) return;
+    const nm = name.trim();
+    if (!nm) return;
+    if (!confirm(nm + ' 님의 조사용 링크를 폐기하시겠습니까?\n이미 저장된 측정값은 그대로 남습니다.')) return;
+    showOverlay('폐기 중...');
+    google.script.run
+      .withSuccessHandler(function(res) {
+        hideOverlay();
+        if (res && res.expired) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
+        if (!res || !res.success) { showResultModal('error', '폐기 실패', (res && res.message) || '실패했습니다.'); return; }
+        showResultModal('success', '폐기 완료', res.name + ' 님의 링크를 폐기했습니다.');
+      })
+      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
+      .revokeSurveyLink(token, nm);
   }
 
   // ========== 보행경로 ==========
