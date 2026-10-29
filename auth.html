@@ -1503,6 +1503,9 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         <label>관리자 이메일 <span class="required">*</span></label>
                 <input type="email" id="email" placeholder="등록된 관리자 이메일" autocomplete="email">
         <span class="error-msg">이메일을 입력해주세요.</span>
+        <div id="clearSavedEmailWrap" style="display:none;text-align:right;margin-top:4px;">
+          <a href="javascript:void(0)" onclick="clearSavedEmail()" style="font-size:11px;color:var(--w50);text-decoration:underline;">🗑️ 저장된 이메일 지우기 (공용 PC)</a>
+        </div>
       </div>
       <button class="btn btn-primary" onclick="requestCode()">인증키 발송</button>
       <div style="font-size:11px;color:var(--w50);text-align:center;margin-top:14px;line-height:1.6;">
@@ -1543,7 +1546,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
   <div class="footer">
     본 시스템은 강원대학교 강릉캠퍼스 자체 운영 시스템입니다.<br>
     인증 시도는 모두 로그에 기록됩니다. (컴퓨터실습실 운영시스템과 같은 관리자 계정을 씁니다)<br>
-    <span style="opacity:0.6;">페이지 버전: 2610282330</span>
+    <span style="opacity:0.6;">페이지 버전: 2610290919</span>
   </div>
 </div>
 
@@ -1623,6 +1626,8 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     if (savedEmail) {
       const emailInput = document.getElementById('email');
       if (emailInput && !emailInput.value) emailInput.value = savedEmail;
+      const wrap = document.getElementById('clearSavedEmailWrap');
+      if (wrap) wrap.style.display = 'block';
     }
     setupAutoClearErrors();
   });
@@ -1689,6 +1694,16 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     } catch (e) {
       return '';
     }
+  }
+
+  // 공용 PC 등에서 자리를 뜨기 전에, 이 브라우저에 저장된 이메일을 지울 수 있게 하는 버튼용 함수
+  function clearSavedEmail() {
+    if (!confirm('이 브라우저에 저장된 관리자 이메일을 지울까요?\n다음부터는 이메일을 직접 입력해야 합니다.')) return;
+    try { localStorage.removeItem('admin_saved_email'); } catch (e) { /* 조용히 무시 */ }
+    const emailInput = document.getElementById('email');
+    if (emailInput) emailInput.value = '';
+    const wrap = document.getElementById('clearSavedEmailWrap');
+    if (wrap) wrap.style.display = 'none';
   }
 
   function onCodeRequested(res) {
