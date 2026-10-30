@@ -409,6 +409,13 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         <a href="outdoor-nav.html" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none;display:inline-block;">🗺️ 지도에서 전체 경로 보기</a>
         <span style="color:var(--t3);font-size:12px;margin-left:8px;">실외 길찾기 화면을 열면 기록된 길이 모두 연한 초록색 선으로 지도 위에 자동으로 그려집니다.</span>
       </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 12px;background:var(--surface-2);border-radius:8px;">
+        <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;">
+          <input type="checkbox" id="offcampusToggle" onchange="onToggleOffcampus(this.checked)" style="width:18px;height:18px;">
+          <span>🧪 캠퍼스 밖에서도 위치·길 기록 허용 (테스트용)</span>
+        </label>
+        <span style="color:var(--t3);font-size:12px;">켜두면 학교 밖에서도 조사 제출이 캠퍼스 범위 체크 없이 저장됩니다. 테스트가 끝나면 꼭 다시 꺼주세요.</span>
+      </div>
       <div id="pathsMsg"></div>
       <div class="table-wrap">
         <table class="data-table" id="pathsTable">
@@ -496,7 +503,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 
   <div class="footer">
     컴퓨터실습실 운영시스템과 같은 GAS 백엔드·관리자 계정을 공유합니다.<br>
-    <span style="opacity:0.6;">페이지 버전: 2610302100</span>
+    <span style="opacity:0.6;">페이지 버전: 2610302115</span>
   </div>
 </div>
 
@@ -510,7 +517,8 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
       'getSurveyTargetsAdmin', 'upsertSurveyTarget', 'deleteSurveyTarget', 'getBuildingCoordsDetailAdmin',
       'getSurveyPathsAdmin', 'setSurveyPathUse', 'deleteSurveyPath',
       'getFloorLayoutsAdmin', 'getFloorLayoutAdmin', 'saveFloorLayout', 'deleteFloorLayout',
-      'getSurveyLink', 'listSurveyLinks', 'revokeSurveyLink'
+      'getSurveyLink', 'listSurveyLinks', 'revokeSurveyLink',
+      'getOffcampusTestMode', 'setOffcampusTestMode'
     ];
     function makeChain(successFn, failureFn) {
       var chain = {
@@ -575,6 +583,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     document.querySelectorAll('.tab').forEach(function(el) { el.classList.toggle('active', el.dataset.tab === name); });
     document.querySelectorAll('.tab-panel').forEach(function(el) { el.classList.toggle('active', el.id === 'panel-' + name); });
     if (name === 'paths' && !pathsLoaded) loadPaths();
+    if (name === 'paths' && !offcampusLoaded) loadOffcampusMode();
     if (name === 'floors' && !floorsLoaded) loadFloors();
     if (name === 'accounts' && accountsVerified) loadAccounts();
     if (name === 'pages' && !pagesRendered) renderPages();
@@ -782,6 +791,43 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 
   // ========== 보행경로 ==========
   let pathsLoaded = false;
+  let offcampusLoaded = false;
+  let offcampusSyncing = false;
+  function loadOffcampusMode() {
+    google.script.run
+      .withSuccessHandler(function(res) {
+        offcampusLoaded = true;
+        if (expiredCheck(res, 'pathsMsg')) return;
+        if (!res.success) return;
+        offcampusSyncing = true;
+        document.getElementById('offcampusToggle').checked = !!res.enabled;
+        offcampusSyncing = false;
+      })
+      .withFailureHandler(function() { offcampusLoaded = true; })
+      .getOffcampusTestMode(token);
+  }
+  function onToggleOffcampus(checked) {
+    if (offcampusSyncing) return;
+    const cb = document.getElementById('offcampusToggle');
+    cb.disabled = true;
+    google.script.run
+      .withSuccessHandler(function(res) {
+        cb.disabled = false;
+        if (expiredCheck(res, 'pathsMsg')) return;
+        if (!res || !res.success) {
+          cb.checked = !checked;
+          showResultModal('error', '변경 실패', (res && res.message) || '처리에 실패했습니다.');
+          return;
+        }
+        cb.checked = !!res.enabled;
+      })
+      .withFailureHandler(function(err) {
+        cb.disabled = false;
+        cb.checked = !checked;
+        showResultModal('error', '서버 오류', err.message);
+      })
+      .setOffcampusTestMode(token, checked);
+  }
   function loadPaths() {
     google.script.run
       .withSuccessHandler(function(res) {
