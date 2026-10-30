@@ -749,7 +749,11 @@
     // 경로처럼 보임. 이럴 땐 가장 가까운 출입로(정문/후문 등 G코드, N1)를 먼저 찾아서 거기까지만
     // 직선 점선으로 안내하고, 그 출입로부터는 평소처럼 조사된 길로만 최단거리 안내함.
     const gate = offNetwork ? nearestGateNode(lat, lng) : null;
-    const useGate = !!(gate && adjacency[gate.code]);
+    // 150m 밖이라고 무조건 출입로(게이트)부터 들어가게 하면, 실제로는 출입로보다 훨씬 가까운
+    // 곳에 이미 실측된 길이 지나가고 있는데도 엉뚱하게 먼 출입로로 먼저 안내해버리는 문제가
+    // 있었음. 그래서 "출입로가 실측된 길의 가장 가까운 지점보다 실제로 더 가까울 때만" 출입로를
+    // 거치게 하고, 그렇지 않으면(= 가까운 실측 경로가 있으면) 그냥 그 경로로 바로 붙게 둔다.
+    const useGate = !!(gate && adjacency[gate.code] && gate.d < loc.dist);
 
     let seedBranches, seedEdgeIdx, startPtsFor;
     if (useGate) {
