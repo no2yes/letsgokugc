@@ -1551,30 +1551,43 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 </div>
 
 <script>
-  // ===== google.script.run → fetch(Web App API) 대체용 shim (GitHub 이전 준비) =====
+  // ===== 로그인/세션 — Cloud Run 로그인 서비스 직접 호출 (GAS 경유 안 함) =====
+  // lab-dashboard/auth.html과 동일한 방식 — admins/sessions Firestore 컬렉션을 그대로 공유하므로
+  // 이 앱의 관리자 계정도 똑같이 로그인된다. (예전엔 이 앱만 GAS 자체 세션을 썼는데, 그 세션은
+  // haeram-login-service의 Firestore 'sessions'와 서로 다른 저장소라 admin.html의 다른 기능에서
+  // "세션이 만료되었습니다" 오류가 났었음 — 로그인 자체를 여기로 옮겨서 근본적으로 맞춤)
   (function() {
-    var API_URL = 'https://script.google.com/macros/s/AKfycbzZ1qjJzAw_I-B7sLw7WVcUik54c8Nb_U52wNid1M9Ck0bA1bm6tMZrktvR9e_RxefRLw/exec?action=adminApi';
-    var WHITELIST = ['requestAuthCode','verifyAuthCode','verifySession','verifyMobileQrToken'];
+    var CLOUD_RUN_URL = 'https://haeram-login-service-94518684657.asia-northeast3.run.app';
+
+    function callCloudRun(path, body, successFn, failureFn) {
+      fetch(CLOUD_RUN_URL + path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { if (successFn) successFn(data); })
+        .catch(function(err) { if (failureFn) failureFn(err); });
+    }
 
     function makeChain(successFn, failureFn) {
-      var chain = {
+      return {
         withSuccessHandler: function(fn) { return makeChain(fn, failureFn); },
         withFailureHandler: function(fn) { return makeChain(successFn, fn); },
-        withUserObject: function() { return chain; }
+        withUserObject: function() { return makeChain(successFn, failureFn); },
+        requestAuthCode: function(email) {
+          callCloudRun('/auth/request-code', { email: email }, successFn, failureFn);
+        },
+        verifyAuthCode: function(email, code) {
+          callCloudRun('/auth/verify-code', { email: email, code: code }, successFn, failureFn);
+        },
+        verifySession: function(token) {
+          callCloudRun('/auth/verify-session', { token: token }, successFn, failureFn);
+        },
+        verifyMobileQrToken: function(mobileToken) {
+          callCloudRun('/auth/mobile-qr/verify', { mobileToken: mobileToken }, successFn, failureFn);
+        }
       };
-      WHITELIST.forEach(function(name) {
-        chain[name] = function() {
-          var args = Array.prototype.slice.call(arguments);
-          fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: name, args: args }) })
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (data && data.__ok) { if (successFn) successFn(data.result); }
-              else { if (failureFn) failureFn(new Error((data && data.message) || '서버 오류')); }
-            })
-            .catch(function(err) { if (failureFn) failureFn(err); });
-        };
-      });
-      return chain;
     }
     window.google = window.google || {};
     window.google.script = { run: makeChain(null, null) };
