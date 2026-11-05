@@ -208,7 +208,8 @@
 (function () {
   'use strict';
 
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzZ1qjJzAw_I-B7sLw7WVcUik54c8Nb_U52wNid1M9Ck0bA1bm6tMZrktvR9e_RxefRLw/exec';
+  // GAS exec를 더 이상 거치지 않고 Cloud Run(haeram-requests-service)으로 직접 호출한다.
+  const CLOUD_RUN_URL = 'https://haeram-requests-service-94518684657.asia-northeast3.run.app';
   const TOKEN = new URLSearchParams(location.search).get('t') || '';
   const BUILD = 'v2 · 2026-10-21 11:27 KST';
   const buildInfoEl = document.getElementById('buildInfo');
@@ -248,9 +249,15 @@
   }
 
   function api(params) {
-    const q = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
-    return fetch(GAS_URL + '?page=api&action=survey&t=' + encodeURIComponent(TOKEN) + '&' + q + '&_=' + Date.now())
-      .then(r => r.json());
+    const path = params.op === 'submit' ? '/survey/submit'
+      : params.op === 'pathsubmit' ? '/survey/pathsubmit'
+      : '/survey/info';
+    const body = Object.assign({}, params, { t: TOKEN });
+    return fetch(CLOUD_RUN_URL + path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(r => r.json());
   }
 
   // ---------- 건물 목록 ----------
@@ -549,7 +556,9 @@
   let gapPairs = null;   // [[from,to],...] 또는 null(서버 미지원)
   function codeOf(v) { return String(v || '').trim().split(/[\s(]/)[0]; }
   function loadGapPairs() {
-    fetch(GAS_URL + '?page=api&action=surveypairs&_=' + Date.now()).then(r => r.json()).then(res => {
+    fetch(CLOUD_RUN_URL + '/survey/pairs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+    }).then(r => r.json()).then(res => {
       gapPairs = (res && res.success) ? (res.pairs || []) : null;
       if (!gapPairs) $('gapSum').textContent = '서버 업데이트 후에 볼 수 있어요.';
       renderGap();

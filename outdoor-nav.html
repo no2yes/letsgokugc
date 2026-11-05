@@ -133,11 +133,14 @@
 </div>
 
 <script>
-  const GAS_URL = 'https://script.google.com/macros/s/AKfycbzZ1qjJzAw_I-B7sLw7WVcUik54c8Nb_U52wNid1M9Ck0bA1bm6tMZrktvR9e_RxefRLw/exec';
+  // GAS exec를 더 이상 거치지 않고 Cloud Run(haeram-requests-service)으로 직접 호출한다.
+  // (현재 이 페이지가 쓰는 action은 'buildingcoords' 하나뿐 — /dashboard/building-coords로 고정 매핑)
+  const CLOUD_RUN_URL = 'https://haeram-requests-service-94518684657.asia-northeast3.run.app';
 
   function api(params) {
-    const q = Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
-    return fetch(GAS_URL + '?page=api&' + q + '&_=' + Date.now()).then(r => r.json());
+    return fetch(CLOUD_RUN_URL + '/dashboard/building-coords', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({})
+    }).then(r => r.json());
   }
 
   // 트레일/게이트 코드 → 이름 (Code.gs의 SURVEY_TRAILS / SURVEY_GATES 와 동일)
