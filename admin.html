@@ -511,6 +511,13 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
   // ===== google.script.run → fetch(Web App API) 대체용 shim =====
   (function() {
     var API_URL = 'https://script.google.com/macros/s/AKfycbzZ1qjJzAw_I-B7sLw7WVcUik54c8Nb_U52wNid1M9Ck0bA1bm6tMZrktvR9e_RxefRLw/exec?action=adminApi';
+    // 조사자 링크 발급/목록/폐기 3개는 Cloud Run(Firestore)으로 이전 완료 — 나머지는 아직 GAS 그대로.
+    var CLOUD_RUN_URL = 'https://haeram-requests-service-94518684657.asia-northeast3.run.app';
+    var CLOUD_RUN_FNS = {
+      getSurveyLink: { path: '/admin/survey/link/create', argNames: ['token', 'name'] },
+      listSurveyLinks: { path: '/admin/survey/link/list', argNames: ['token'] },
+      revokeSurveyLink: { path: '/admin/survey/link/revoke', argNames: ['token', 'name'] }
+    };
     var WHITELIST = [
       'verifySession', 'checkSuperAdmin', 'getAdminList', 'addAdmin', 'removeAdmin',
       'requestAuthCode', 'verifyAuthCode', 'logout',
@@ -529,6 +536,16 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
       WHITELIST.forEach(function(name) {
         chain[name] = function() {
           var args = Array.prototype.slice.call(arguments);
+          var cr = CLOUD_RUN_FNS[name];
+          if (cr) {
+            var body = {};
+            cr.argNames.forEach(function(an, i) { body[an] = args[i]; });
+            fetch(CLOUD_RUN_URL + cr.path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+              .then(function(r) { return r.json(); })
+              .then(function(data) { if (successFn) successFn(data); })
+              .catch(function(err) { if (failureFn) failureFn(err); });
+            return;
+          }
           fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: name, args: args }) })
             .then(function(r) { return r.json(); })
             .then(function(data) {
