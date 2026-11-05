@@ -1551,11 +1551,10 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 </div>
 
 <script>
-  // ===== 로그인/세션 — Cloud Run 로그인 서비스 직접 호출 (GAS 경유 안 함) =====
-  // lab-dashboard/auth.html과 동일한 방식 — admins/sessions Firestore 컬렉션을 그대로 공유하므로
-  // 이 앱의 관리자 계정도 똑같이 로그인된다. (예전엔 이 앱만 GAS 자체 세션을 썼는데, 그 세션은
-  // haeram-login-service의 Firestore 'sessions'와 서로 다른 저장소라 admin.html의 다른 기능에서
-  // "세션이 만료되었습니다" 오류가 났었음 — 로그인 자체를 여기로 옮겨서 근본적으로 맞춤)
+  // ===== 로그인/세션 — Cloud Run 로그인 서비스(haeram-login-service) 직접 호출, GAS 경유 안 함 =====
+  // 다녀봐!강대강캠!은 컴퓨터실습실 운영시스템과 관리자 명단·세션이 완전히 분리되어 있어서
+  // (각자 자기만의 '관리자' 시트를 쓰던 걸 그대로 옮긴 것) /danyeobwa/* 전용 경로를 쓴다.
+  // 공용 /auth/* 를 쓰면 그쪽 관리자 명단으로 검증되어 버려 서로 다른 시스템이 섞인다.
   (function() {
     var CLOUD_RUN_URL = 'https://haeram-login-service-94518684657.asia-northeast3.run.app';
 
@@ -1576,16 +1575,17 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         withFailureHandler: function(fn) { return makeChain(successFn, fn); },
         withUserObject: function() { return makeChain(successFn, failureFn); },
         requestAuthCode: function(email) {
-          callCloudRun('/auth/request-code', { email: email }, successFn, failureFn);
+          callCloudRun('/danyeobwa/auth/request-code', { email: email }, successFn, failureFn);
         },
         verifyAuthCode: function(email, code) {
-          callCloudRun('/auth/verify-code', { email: email, code: code }, successFn, failureFn);
+          callCloudRun('/danyeobwa/auth/verify-code', { email: email, code: code }, successFn, failureFn);
         },
         verifySession: function(token) {
-          callCloudRun('/auth/verify-session', { token: token }, successFn, failureFn);
+          callCloudRun('/danyeobwa/auth/verify-session', { token: token }, successFn, failureFn);
         },
         verifyMobileQrToken: function(mobileToken) {
-          callCloudRun('/auth/mobile-qr/verify', { mobileToken: mobileToken }, successFn, failureFn);
+          // 모바일 QR 로그인은 이 앱에서 아직 지원되지 않음(발급 UI 없음) — 호출되면 그냥 실패 처리됨
+          callCloudRun('/danyeobwa/auth/mobile-qr/verify', { mobileToken: mobileToken }, successFn, failureFn);
         }
       };
     }

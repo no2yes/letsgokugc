@@ -508,34 +508,43 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 </div>
 
 <script>
-  // ===== google.script.run → fetch(Web App API) 대체용 shim =====
+  // ===== google.script.run → fetch(Cloud Run) 대체용 shim — GAS 완전히 제거됨 =====
+  // 로그인/세션/계정은 haeram-login-service의 /danyeobwa/* (컴퓨터실습실 운영시스템과는 분리된
+  // 전용 관리자 명단·세션), 그 외 현장조사/보행경로/층별도면 데이터는 haeram-requests-service.
   (function() {
-    var API_URL = 'https://script.google.com/macros/s/AKfycbzZ1qjJzAw_I-B7sLw7WVcUik54c8Nb_U52wNid1M9Ck0bA1bm6tMZrktvR9e_RxefRLw/exec?action=adminApi';
-    // 조사자 링크 발급/목록/폐기 + 로그인/세션/계정 관리는 Cloud Run(Firestore)으로 이전 완료 — 나머지는 아직 GAS 그대로.
     var SURVEY_SERVICE_URL = 'https://haeram-requests-service-94518684657.asia-northeast3.run.app';
     var LOGIN_SERVICE_URL = 'https://haeram-login-service-94518684657.asia-northeast3.run.app';
     var CLOUD_RUN_FNS = {
+      verifySession: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/auth/verify-session', argNames: ['token'] },
+      checkSuperAdmin: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/admin/accounts/check-super', argNames: ['token'] },
+      getAdminList: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/admin/accounts/list', argNames: ['token'] },
+      addAdmin: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/admin/accounts/add', argNames: ['token', 'email', 'name'] },
+      removeAdmin: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/admin/accounts/remove', argNames: ['token', 'email'] },
+      requestAuthCode: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/auth/request-code', argNames: ['email'] },
+      verifyAuthCode: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/auth/verify-code', argNames: ['email', 'code'] },
+      logout: { base: LOGIN_SERVICE_URL, path: '/danyeobwa/auth/logout', argNames: ['token'] },
+
+      getSurveyTargetsAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/survey/targets/list', argNames: ['token'] },
+      upsertSurveyTarget: { base: SURVEY_SERVICE_URL, path: '/admin/survey/targets/upsert', argNames: ['token', 'code', 'name', 'kind', 'desc', 'use'] },
+      deleteSurveyTarget: { base: SURVEY_SERVICE_URL, path: '/admin/survey/targets/delete', argNames: ['token', 'code'] },
+      getBuildingCoordsDetailAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/survey/building-coords-detail', argNames: ['token'] },
+      getSurveyPathsAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/survey/paths/list', argNames: ['token'] },
+      setSurveyPathUse: { base: SURVEY_SERVICE_URL, path: '/admin/survey/paths/set-use', argNames: ['token', 'row', 'use'] },
+      deleteSurveyPath: { base: SURVEY_SERVICE_URL, path: '/admin/survey/paths/delete', argNames: ['token', 'row'] },
+
+      getFloorLayoutsAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/floor-layouts/list', argNames: ['token'] },
+      getFloorLayoutAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/floor-layouts/get', argNames: ['token', 'mission'] },
+      saveFloorLayout: { base: SURVEY_SERVICE_URL, path: '/admin/floor-layouts/save', argNames: ['token', 'jsonText'] },
+      deleteFloorLayout: { base: SURVEY_SERVICE_URL, path: '/admin/floor-layouts/delete', argNames: ['token', 'mission'] },
+
       getSurveyLink: { base: SURVEY_SERVICE_URL, path: '/admin/survey/link/create', argNames: ['token', 'name'] },
       listSurveyLinks: { base: SURVEY_SERVICE_URL, path: '/admin/survey/link/list', argNames: ['token'] },
       revokeSurveyLink: { base: SURVEY_SERVICE_URL, path: '/admin/survey/link/revoke', argNames: ['token', 'name'] },
-      verifySession: { base: LOGIN_SERVICE_URL, path: '/auth/verify-session', argNames: ['token'] },
-      checkSuperAdmin: { base: LOGIN_SERVICE_URL, path: '/admin/accounts/check-super', argNames: ['token'] },
-      getAdminList: { base: LOGIN_SERVICE_URL, path: '/admin/accounts/list', argNames: ['token'] },
-      addAdmin: { base: LOGIN_SERVICE_URL, path: '/admin/accounts/add', argNames: ['token', 'email', 'name'] },
-      removeAdmin: { base: LOGIN_SERVICE_URL, path: '/admin/accounts/remove', argNames: ['token', 'email'] },
-      requestAuthCode: { base: LOGIN_SERVICE_URL, path: '/auth/request-code', argNames: ['email'] },
-      verifyAuthCode: { base: LOGIN_SERVICE_URL, path: '/auth/verify-code', argNames: ['email', 'code'] },
-      logout: { base: LOGIN_SERVICE_URL, path: '/auth/logout', argNames: ['token'] }
+
+      getOffcampusTestMode: { base: SURVEY_SERVICE_URL, path: '/admin/offcampus-test-mode/get', argNames: ['token'] },
+      setOffcampusTestMode: { base: SURVEY_SERVICE_URL, path: '/admin/offcampus-test-mode/set', argNames: ['token', 'enabled'] }
     };
-    var WHITELIST = [
-      'verifySession', 'checkSuperAdmin', 'getAdminList', 'addAdmin', 'removeAdmin',
-      'requestAuthCode', 'verifyAuthCode', 'logout',
-      'getSurveyTargetsAdmin', 'upsertSurveyTarget', 'deleteSurveyTarget', 'getBuildingCoordsDetailAdmin',
-      'getSurveyPathsAdmin', 'setSurveyPathUse', 'deleteSurveyPath',
-      'getFloorLayoutsAdmin', 'getFloorLayoutAdmin', 'saveFloorLayout', 'deleteFloorLayout',
-      'getSurveyLink', 'listSurveyLinks', 'revokeSurveyLink',
-      'getOffcampusTestMode', 'setOffcampusTestMode'
-    ];
+    var WHITELIST = Object.keys(CLOUD_RUN_FNS);
     function makeChain(successFn, failureFn) {
       var chain = {
         withSuccessHandler: function(fn) { return makeChain(fn, failureFn); },
@@ -546,21 +555,11 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         chain[name] = function() {
           var args = Array.prototype.slice.call(arguments);
           var cr = CLOUD_RUN_FNS[name];
-          if (cr) {
-            var body = {};
-            cr.argNames.forEach(function(an, i) { body[an] = args[i]; });
-            fetch(cr.base + cr.path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-              .then(function(r) { return r.json(); })
-              .then(function(data) { if (successFn) successFn(data); })
-              .catch(function(err) { if (failureFn) failureFn(err); });
-            return;
-          }
-          fetch(API_URL, { method: 'POST', body: JSON.stringify({ fn: name, args: args }) })
+          var body = {};
+          cr.argNames.forEach(function(an, i) { body[an] = args[i]; });
+          fetch(cr.base + cr.path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
             .then(function(r) { return r.json(); })
-            .then(function(data) {
-              if (data && data.__ok) { if (successFn) successFn(data.result); }
-              else { if (failureFn) failureFn(new Error((data && data.message) || '서버 오류')); }
-            })
+            .then(function(data) { if (successFn) successFn(data); })
             .catch(function(err) { if (failureFn) failureFn(err); });
         };
       });
@@ -878,8 +877,8 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         '<td class="muted">' + alt + '</td>' +
         '<td><span class="pill ' + (p.use ? 'on' : 'off') + '">' + (p.use ? '사용' : '중지') + '</span></td>' +
         '<td>' +
-          '<button class="btn btn-secondary btn-sm" onclick="togglePathUse(' + p.row + ',' + (!p.use) + ')">' + (p.use ? '중지' : '다시 사용') + '</button> ' +
-          '<button class="btn btn-danger btn-sm" onclick="removePathRow(' + p.row + ')">삭제</button>' +
+          '<button class="btn btn-secondary btn-sm" onclick="togglePathUse(\'' + escapeHtml(p.row) + '\',' + (!p.use) + ')">' + (p.use ? '중지' : '다시 사용') + '</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="removePathRow(\'' + escapeHtml(p.row) + '\')">삭제</button>' +
         '</td>' +
       '</tr>';
     }).join('');
