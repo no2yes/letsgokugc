@@ -357,10 +357,15 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
 
       <div class="section-title" style="margin-top:0;">건물 위치 조사 링크 (알바생용)</div>
       <div class="section-desc">조사자 이름으로 링크를 만들면 그 이름으로 측정값이 기록됩니다.</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;">
         <button class="btn btn-primary btn-sm" onclick="surveyMakeLinkUI()">링크 만들기</button>
-        <button class="btn btn-secondary btn-sm" onclick="surveyListLinksUI()">목록</button>
-        <button class="btn btn-secondary btn-sm" onclick="surveyRevokeUI()">폐기</button>
+      </div>
+      <div id="surveyLinksEmpty" class="muted" style="margin-bottom:16px;">발급된 링크가 없습니다.</div>
+      <div class="table-wrap" style="margin-bottom:16px;">
+        <table class="data-table" id="surveyLinksTable">
+          <thead><tr><th>이름</th><th>링크</th><th></th></tr></thead>
+          <tbody id="surveyLinksBody"></tbody>
+        </table>
       </div>
 
       <div id="buildingsMsg"></div>
@@ -676,6 +681,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
   // ========== 건물 좌표/이름 ==========
   let buildingTargets = [], buildingCoordsDetail = {};
   function loadBuildings() {
+    loadSurveyLinks();
     google.script.run
       .withSuccessHandler(function(res) {
         if (expiredCheck(res, 'buildingsMsg')) return;
@@ -776,42 +782,51 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         showResultModal('success', res.name + ' 님 조사용 링크',
           (res.existing ? '이미 발급된 링크입니다.\n' : '') +
           '아래 링크를 ' + res.name + ' 님에게 전달해주세요. (클립보드에 자동 복사됨)\n\n' + res.url);
+        loadSurveyLinks();
       })
       .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
       .getSurveyLink(token, nm);
   }
 
-  function surveyListLinksUI() {
-    showOverlay('목록 불러오는 중...');
+  function loadSurveyLinks() {
     google.script.run
       .withSuccessHandler(function(res) {
-        hideOverlay();
-        if (res && res.expired) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
-        if (!res || !res.success) { showResultModal('error', '조회 실패', (res && res.message) || '실패했습니다.'); return; }
-        if (!res.links.length) { showResultModal('success', '조사용 링크 목록', '발급된 링크가 없습니다.'); return; }
-        showResultModal('success', '조사용 링크 목록 (' + res.links.length + '명)',
-          res.links.map(function(l) { return l.name + '\n' + l.url; }).join('\n\n'));
+        if (expiredCheck(res, 'buildingsMsg')) return;
+        if (!res.success) return;
+        renderSurveyLinks(res.links || []);
       })
-      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
+      .withFailureHandler(function(err) { setMsg('buildingsMsg', 'error', '링크 목록을 불러오지 못했습니다: ' + err.message); })
       .listSurveyLinks(token);
   }
-
-  function surveyRevokeUI() {
-    const name = prompt('링크를 폐기할 조사자 이름을 입력하세요.');
-    if (name === null) return;
-    const nm = name.trim();
-    if (!nm) return;
-    if (!confirm(nm + ' 님의 조사용 링크를 폐기하시겠습니까?\n이미 저장된 측정값은 그대로 남습니다.')) return;
-    showOverlay('폐기 중...');
+  function renderSurveyLinks(list) {
+    document.getElementById('surveyLinksEmpty').style.display = list.length ? 'none' : 'block';
+    document.getElementById('surveyLinksBody').innerHTML = list.map(function(l) {
+      return '<tr>' +
+        '<td><strong>' + escapeHtml(l.name) + '</strong></td>' +
+        '<td class="muted" style="word-break:break-all;">' + escapeHtml(l.url) + '</td>' +
+        '<td style="white-space:nowrap;">' +
+          '<button class="btn btn-secondary btn-sm" onclick="copySurveyLinkUrl(\'' + escapeHtml(l.url) + '\')">복사</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="revokeSurveyLinkByName(\'' + escapeHtml(l.name) + '\')">삭제</button>' +
+        '</td>' +
+      '</tr>';
+    }).join('');
+  }
+  function copySurveyLinkUrl(url) {
+    if (navigator.clipboard) navigator.clipboard.writeText(url).catch(() => {});
+    setMsg('buildingsMsg', 'success', '링크를 클립보드에 복사했습니다.');
+  }
+  function revokeSurveyLinkByName(name) {
+    if (!confirm(name + ' 님의 조사용 링크를 삭제하시겠습니까?\n이미 저장된 측정값은 그대로 남습니다.')) return;
+    showOverlay('삭제 중...');
     google.script.run
       .withSuccessHandler(function(res) {
         hideOverlay();
-        if (res && res.expired) { sessionStorage.removeItem('admin_token'); redirectToLogin(); return; }
-        if (!res || !res.success) { showResultModal('error', '폐기 실패', (res && res.message) || '실패했습니다.'); return; }
-        showResultModal('success', '폐기 완료', res.name + ' 님의 링크를 폐기했습니다.');
+        if (expiredCheck(res, 'buildingsMsg')) return;
+        setMsg('buildingsMsg', res.success ? 'success' : 'error', res.success ? (res.name + ' 님의 링크를 삭제했습니다.') : (res.message || '삭제 실패'));
+        if (res.success) loadSurveyLinks();
       })
-      .withFailureHandler(function(err) { hideOverlay(); showResultModal('error', '서버 오류', err.message); })
-      .revokeSurveyLink(token, nm);
+      .withFailureHandler(function(err) { hideOverlay(); setMsg('buildingsMsg', 'error', err.message); })
+      .revokeSurveyLink(token, name);
   }
 
   // ========== 보행경로 ==========
