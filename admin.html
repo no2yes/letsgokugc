@@ -380,15 +380,15 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
   <!-- ===== 건물 좌표/이름 ===== -->
   <div class="tab-panel active" id="panel-buildings">
     <div class="card">
-      <div class="section-title">조사대상 목록</div>
-      <div class="section-desc">코드·이름·구분을 수정하거나 새 지점을 추가합니다. 좌표는 현장조사(outdoor-survey.html)로 수집된 GPS 기록에서 자동 계산되며, 아래 표의 "정문 좌표" 칸에 함께 표시됩니다.</div>
-
       <div class="section-title" style="margin-top:0;">건물 위치 조사 링크 (알바생용)</div>
       <div class="section-desc">조사자 이름으로 링크를 만들면 그 이름으로 측정값이 기록됩니다.</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;">
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;">
         <button class="btn btn-primary btn-sm" onclick="surveyMakeLinkUI()">링크 만들기</button>
         <button class="btn btn-secondary btn-sm" onclick="surveyListLinksUI()">목록</button>
       </div>
+
+      <div class="section-title">조사대상 목록</div>
+      <div class="section-desc">코드·이름·구분을 수정하거나 새 지점을 추가합니다. 좌표는 현장조사(outdoor-survey.html)로 수집된 GPS 기록에서 자동 계산되며, 아래 표의 "정문 좌표" 칸에 함께 표시됩니다.</div>
 
       <div id="buildingsMsg"></div>
       <div class="table-wrap">
