@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>다녀봐!강대강캠! 관리자</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { visibility: hidden; }
@@ -182,6 +183,24 @@
   .link-box-close:hover { color: var(--text); }
   #linksModalBody { overflow-y: auto; }
 
+  .coord-modal {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10000;
+    align-items: center; justify-content: center; padding: 16px;
+  }
+  .coord-modal.show { display: flex; }
+  .coord-box {
+    background: var(--surface-pop); border-radius: 14px; padding: 16px; max-width: 640px; width: 100%;
+    max-height: 90vh; display: flex; flex-direction: column; color: var(--text);
+    box-shadow: 0 12px 40px rgba(var(--sh),calc(0.5 * var(--shk)));
+  }
+  .coord-box-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-shrink: 0; }
+  .coord-box-title { font-size: 15px; font-weight: 700; }
+  .coord-box-close { background: none; border: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--t3); padding: 2px 4px; }
+  #coordMap { width: 100%; height: 50vh; border-radius: 10px; margin-bottom: 10px; flex-shrink: 0; }
+  .coord-box-foot { display: flex; gap: 8px; flex-shrink: 0; }
+  .coord-box-foot .btn { flex: 1; }
+  .coord-hint { font-size: 12.5px; color: var(--t3); margin-bottom: 8px; }
+
 @media (max-width: 600px) {
   body { padding: 8px; }
   .card { padding: 14px; }
@@ -353,6 +372,22 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
     </div>
     <div id="linksModalBody">
       <div style="text-align:center;color:var(--t4);padding:30px 0;">불러오는 중...</div>
+    </div>
+  </div>
+</div>
+
+<div class="coord-modal" id="coordModal" onclick="if(event.target===this) closeCoordPicker();">
+  <div class="coord-box">
+    <div class="coord-box-head">
+      <div class="coord-box-title" id="coordBoxTitle">좌표 보정</div>
+      <button class="coord-box-close" onclick="closeCoordPicker()" aria-label="닫기">&times;</button>
+    </div>
+    <div class="coord-hint">위성 지도를 눌러서 정문 위치를 지정하세요. 마커를 끌어서 조정할 수 있습니다. 확정하면 현장 측정값들과 함께 평균에 반영됩니다.</div>
+    <div id="coordMap"></div>
+    <div id="coordMsg"></div>
+    <div class="coord-box-foot">
+      <button class="btn btn-secondary" onclick="closeCoordPicker()">취소</button>
+      <button class="btn btn-primary" id="coordConfirmBtn" disabled onclick="confirmCoordPicker()">이 위치로 확정</button>
     </div>
   </div>
 </div>
@@ -534,6 +569,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
   </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
   // ===== google.script.run → fetch(Cloud Run) 대체용 shim — GAS 완전히 제거됨 =====
   // 로그인/세션/계정은 haeram-login-service의 /danyeobwa/* (컴퓨터실습실 운영시스템과는 분리된
@@ -555,6 +591,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
       upsertSurveyTarget: { base: SURVEY_SERVICE_URL, path: '/admin/survey/targets/upsert', argNames: ['token', 'code', 'name', 'kind', 'desc', 'use'] },
       deleteSurveyTarget: { base: SURVEY_SERVICE_URL, path: '/admin/survey/targets/delete', argNames: ['token', 'code'] },
       getBuildingCoordsDetailAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/survey/building-coords-detail', argNames: ['token'] },
+      setBuildingCoordAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/survey/building-coords-set', argNames: ['token', 'code', 'etype', 'lat', 'lng', 'note'] },
       getSurveyPathsAdmin: { base: SURVEY_SERVICE_URL, path: '/admin/survey/paths/list', argNames: ['token'] },
       setSurveyPathUse: { base: SURVEY_SERVICE_URL, path: '/admin/survey/paths/set-use', argNames: ['token', 'row', 'use'] },
       deleteSurveyPath: { base: SURVEY_SERVICE_URL, path: '/admin/survey/paths/delete', argNames: ['token', 'row'] },
@@ -736,10 +773,69 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         '<td class="muted">' + escapeHtml(coordText) + '</td>' +
         '<td>' +
           '<button class="btn btn-secondary btn-sm" onclick="editBuildingTarget(\'' + escapeHtml(t.code) + '\')">수정</button> ' +
+          '<button class="btn btn-secondary btn-sm" onclick="openCoordPicker(\'' + escapeHtml(t.code) + '\', \'' + escapeHtml(t.name || t.code) + '\')">🗺️ 좌표 보정</button> ' +
           '<button class="btn btn-danger btn-sm" onclick="removeBuildingTarget(\'' + escapeHtml(t.code) + '\')">삭제</button>' +
         '</td>' +
       '</tr>';
     }).join('');
+  }
+  // ---- 좌표 보정: 위성 지도에서 직접 클릭해 정문 좌표 지정 ----
+  const CAMPUS_CENTER = [37.7716, 128.8716];
+  let coordMap = null, coordMarker = null, coordTargetCode = null;
+  function openCoordPicker(code, name) {
+    coordTargetCode = code;
+    document.getElementById('coordBoxTitle').textContent = '좌표 보정 — ' + name + ' (' + code + ', 정문)';
+    document.getElementById('coordMsg').innerHTML = '';
+    document.getElementById('coordConfirmBtn').disabled = true;
+    document.getElementById('coordModal').classList.add('show');
+    const g = (buildingCoordsDetail[code] || {})['정문'];
+    const center = (g && g.lat) ? [g.lat, g.lng] : CAMPUS_CENTER;
+    setTimeout(function() {
+      if (!coordMap) {
+        coordMap = L.map('coordMap', { zoomControl: true }).setView(center, 18);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 20, attribution: 'Esri, Maxar, Earthstar Geographics'
+        }).addTo(coordMap);
+        coordMap.on('click', function(e) {
+          if (coordMarker) coordMap.removeLayer(coordMarker);
+          coordMarker = L.marker(e.latlng, { draggable: true }).addTo(coordMap);
+          document.getElementById('coordConfirmBtn').disabled = false;
+        });
+      } else {
+        coordMap.setView(center, 18);
+      }
+      if (coordMarker) { coordMap.removeLayer(coordMarker); coordMarker = null; document.getElementById('coordConfirmBtn').disabled = true; }
+      if (g && g.lat) {
+        coordMarker = L.marker(center, { draggable: true }).addTo(coordMap);
+        document.getElementById('coordConfirmBtn').disabled = false;
+      }
+      coordMap.invalidateSize();
+    }, 30);
+  }
+  function closeCoordPicker() {
+    document.getElementById('coordModal').classList.remove('show');
+    coordTargetCode = null;
+  }
+  function confirmCoordPicker() {
+    if (!coordMarker || !coordTargetCode) return;
+    const ll = coordMarker.getLatLng();
+    const btn = document.getElementById('coordConfirmBtn');
+    btn.disabled = true; btn.textContent = '저장 중...';
+    google.script.run
+      .withSuccessHandler(function(res) {
+        btn.textContent = '이 위치로 확정';
+        if (expiredCheck(res, 'coordMsg')) return;
+        if (!res.success) { btn.disabled = false; setMsg('coordMsg', 'error', res.message || '저장하지 못했습니다.'); return; }
+        buildingCoordsDetail = res.coords || buildingCoordsDetail;
+        renderBuildings();
+        closeCoordPicker();
+        setMsg('buildingsMsg', 'success', coordTargetCode + ' 정문 좌표를 지도에서 지정한 값으로 반영했습니다.');
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false; btn.textContent = '이 위치로 확정';
+        setMsg('coordMsg', 'error', '저장하지 못했습니다: ' + err.message);
+      })
+      .setBuildingCoordAdmin(token, coordTargetCode, '정문', ll.lat.toFixed(7), ll.lng.toFixed(7), '관리자 지도 보정');
   }
   function editBuildingTarget(code) {
     const t = buildingTargets.find(function(x) { return x.code === code; });
