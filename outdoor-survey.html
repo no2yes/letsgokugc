@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <title>건물 위치 현장조사</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <style>
   :root {
     --bg:#f6f4ef; --card:#ffffff; --text:#25272b; --t2:#5b6068; --t3:#8a8f98;
@@ -79,6 +80,15 @@
   .tabs button.on { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
   .big { font-size:26px; font-weight:800; font-variant-numeric:tabular-nums; }
   .btn.stop { background:var(--danger); color:#fff; }
+  .btn.pick { background:transparent; color:var(--accent); border:1px solid var(--accent); margin-top:8px; font-size:15px; padding:11px; font-weight:700; }
+  .mapModal { display:none; position:fixed; inset:0; background:#000; z-index:20000; flex-direction:column; }
+  .mapModal.show { display:flex; }
+  .mapModal .mmHead { background:var(--card); color:var(--text); padding:10px 12px; font-size:13px; display:flex; align-items:center; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); }
+  .mapModal .mmHint { flex:1; }
+  .mapModal #mmMap { flex:1; }
+  .mapModal .mmFoot { background:var(--card); padding:10px 12px calc(10px + env(safe-area-inset-bottom)); display:flex; gap:8px; border-top:1px solid var(--line); }
+  .mapModal .mmFoot .btn { margin:0; }
+  .mapModal .mmClose { background:none; border:0; color:var(--t2); font-size:22px; line-height:1; padding:0 4px; cursor:pointer; }
 </style>
 </head>
 <body>
@@ -127,6 +137,7 @@
 <div class="card" id="cardMeasure">
   <div class="step"><b>2</b>위치 측정</div>
   <button class="btn" id="btnMeasure" disabled>현재 위치 측정</button>
+  <button class="btn pick" id="btnPickMap" disabled>🗺️ 지도에서 찍어서 지정하기</button>
   <div class="meter hide" id="meter"><i id="meterBar"></i></div>
   <div class="live" id="live"></div>
   <div id="result"></div>
@@ -175,6 +186,7 @@
   <div class="card">
     <div class="step"><b>2</b>걸으며 기록</div>
     <button class="btn" id="btnPath" disabled>걷기 시작</button>
+    <button class="btn pick" id="btnPickMapPath" disabled>🗺️ 지도에서 점 찍어 경로 만들기</button>
     <div class="live" id="pLive" style="margin-top:10px;"></div>
     <div id="pResult"></div>
   </div>
@@ -204,6 +216,19 @@
 
 <div class="tip" style="text-align:center;margin-top:22px;opacity:.6;" id="buildInfo"></div>
 
+<div class="mapModal" id="mapModal">
+  <div class="mmHead">
+    <div class="mmHint" id="mmHint">지도를 눌러서 위치를 찍으세요. 손가락/확대로 위치를 조정할 수 있어요.</div>
+    <button class="mmClose" id="mmClose" aria-label="닫기">&times;</button>
+  </div>
+  <div id="mmMap"></div>
+  <div class="mmFoot">
+    <button class="btn ghost" id="mmUndo" style="display:none;">되돌리기</button>
+    <button class="btn ok" id="mmConfirm" disabled>이 위치로 확정</button>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 (function () {
   'use strict';
@@ -342,7 +367,9 @@
     const ok = !!surveyor && !!code && !!TOKEN && newOk;
     el.btnMeasure.disabled = !ok || busy;
     el.btnSave.disabled = !(ok && measured && !busy);
+    const pm = document.getElementById('btnPickMap'); if (pm) pm.disabled = !ok || busy;
     const pb = document.getElementById('btnPath'); if (pb) pb.disabled = !(surveyor && TOKEN);
+    const ppm = document.getElementById('btnPickMapPath'); if (ppm) ppm.disabled = !(surveyor && TOKEN);
   }
   el.bld.addEventListener('change', function () {
     if (!isNewPoint(el.bld.value)) lsSet('survey_last_bld', el.bld.value);
@@ -472,7 +499,8 @@
       bld: code, note: el.note.value.trim(),
       etype: curEntType(),
       lat: measured.lat.toFixed(7), lng: measured.lng.toFixed(7),
-      acc: measured.acc.toFixed(1), n: measured.n
+      acc: measured.acc.toFixed(1), n: measured.n,
+      device: measured.device === 'MAP' ? 'MAP' : 'GPS'
     };
     if (isNew) params.newName = newName;
     api(params).then(res => {
@@ -787,6 +815,120 @@
   });
   function refreshPathBtn() { $('btnPath').disabled = !(surveyor && TOKEN); }
   document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && pBusy) wakeOn(); });
+
+  // ================= 지도에서 직접 찍어서 포인트/경로 만들기 =================
+  // 현장에 가지 않고도 위성 지도를 보며 위치를 찍거나, 걸은 경로를 선으로 그려서 등록할 수 있게 함.
+  // (GPS 측정이 어려운 곳, 미리 확인해 두고 싶은 곳 등에 보조로 사용)
+  const CAMPUS_CENTER = [37.7716, 128.8716];   // 대략 캠퍼스 중심 — 지도 열 때 처음 보여줄 위치
+  const MM_PATH_MIN_M = 15;                     // 서버의 SURVEY_PATH_MIN_M과 동일
+  let mmMap = null, mmMarker = null, mmLine = null, mmDots = [], mmMode = null, mmPts = [];
+
+  function mmEnsureMap(center) {
+    if (mmMap) { mmMap.setView(center, 18); return; }
+    mmMap = L.map('mmMap', { zoomControl: true, attributionControl: true }).setView(center, 18);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 20, attribution: 'Esri, Maxar, Earthstar Geographics'
+    }).addTo(mmMap);
+    mmMap.on('click', function (e) { mmOnClick(e.latlng); });
+  }
+  function mmClearDots() { mmDots.forEach(d => mmMap.removeLayer(d)); mmDots = []; }
+  function mmRedrawPath() {
+    if (mmLine) { mmMap.removeLayer(mmLine); mmLine = null; }
+    mmClearDots();
+    mmPts.forEach(function (p, i) {
+      mmDots.push(L.circleMarker([p.lat, p.lng], {
+        radius: 5, color: '#fff', weight: 2, fillColor: i === 0 ? '#2e8b57' : '#1a56ff', fillOpacity: 1
+      }).addTo(mmMap));
+    });
+    if (mmPts.length >= 2) {
+      mmLine = L.polyline(mmPts.map(function (p) { return [p.lat, p.lng]; }), { color: '#1a56ff', weight: 4 }).addTo(mmMap);
+    }
+    const len = mmPts.length >= 2 ? Math.round(pathLen(mmPts)) : 0;
+    $('mmHint').textContent = mmPts.length
+      ? ('점 ' + mmPts.length + '개 · ' + len + 'm' + (len < MM_PATH_MIN_M ? ' (15m 이상 찍어야 저장할 수 있어요)' : '') + ' — 다 그렸으면 "이 경로로 확정"')
+      : '지도를 눌러서 점을 순서대로 찍어 경로를 그리세요.';
+  }
+  function mmOnClick(ll) {
+    if (mmMode === 'point') {
+      if (mmMarker) mmMap.removeLayer(mmMarker);
+      mmMarker = L.marker(ll, { draggable: true }).addTo(mmMap);
+      $('mmConfirm').disabled = false;
+    } else if (mmMode === 'path') {
+      mmPts.push({ lat: ll.lat, lng: ll.lng, alt: null });
+      mmRedrawPath();
+      $('mmUndo').style.display = mmPts.length ? '' : 'none';
+      $('mmConfirm').disabled = mmPts.length < 2 || pathLen(mmPts) < MM_PATH_MIN_M;
+    }
+  }
+  function mmOpenPoint() {
+    mmMode = 'point';
+    if (mmLine) { mmMap && mmMap.removeLayer(mmLine); mmLine = null; }
+    mmMap && mmClearDots();
+    mmPts = [];
+    if (mmMarker) { mmMap && mmMap.removeLayer(mmMarker); mmMarker = null; }
+    $('mmHint').textContent = '지도를 눌러서 위치를 찍으세요. 마커를 끌어서 조정할 수도 있어요.';
+    $('mmUndo').style.display = 'none';
+    $('mmConfirm').textContent = '이 위치로 확정';
+    $('mmConfirm').disabled = true;
+    $('mapModal').classList.add('show');
+    const startCenter = measured ? [measured.lat, measured.lng] : CAMPUS_CENTER;
+    setTimeout(function () { mmEnsureMap(startCenter); mmMap.invalidateSize(); }, 30);
+  }
+  function mmOpenPath() {
+    mmMode = 'path';
+    if (mmMarker) { mmMap && mmMap.removeLayer(mmMarker); mmMarker = null; }
+    mmPts = [];
+    $('mmHint').textContent = '지도를 눌러서 점을 순서대로 찍어 경로를 그리세요.';
+    $('mmUndo').style.display = 'none';
+    $('mmConfirm').textContent = '이 경로로 확정';
+    $('mmConfirm').disabled = true;
+    $('mapModal').classList.add('show');
+    setTimeout(function () { mmEnsureMap(CAMPUS_CENTER); mmMap.invalidateSize(); mmRedrawPath(); }, 30);
+  }
+  function mmClose() { $('mapModal').classList.remove('show'); }
+  $('mmClose').addEventListener('click', mmClose);
+  $('mmUndo').addEventListener('click', function () {
+    if (mmMode === 'point') {
+      if (mmMarker) { mmMap.removeLayer(mmMarker); mmMarker = null; }
+      $('mmConfirm').disabled = true;
+    } else if (mmMode === 'path') {
+      mmPts.pop(); mmRedrawPath();
+      $('mmUndo').style.display = mmPts.length ? '' : 'none';
+      $('mmConfirm').disabled = mmPts.length < 2 || pathLen(mmPts) < MM_PATH_MIN_M;
+    }
+  });
+  $('mmConfirm').addEventListener('click', function () {
+    if (mmMode === 'point') {
+      if (!mmMarker) return;
+      const ll = mmMarker.getLatLng();
+      measured = { lat: ll.lat, lng: ll.lng, acc: 3, n: 1, device: 'MAP' };
+      el.live.textContent = '';
+      el.result.innerHTML =
+        '<div class="result good"><span class="coord">' + ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6) + '</span>' +
+        '지도에서 직접 지정한 위치' +
+        '<br><a href="https://maps.google.com/?q=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6) + '" target="_blank" rel="noopener">지도에서 위치 확인</a>' +
+        '</div>';
+      refreshButtons();
+      mmClose();
+    } else if (mmMode === 'path') {
+      if (mmPts.length < 2 || pathLen(mmPts) < MM_PATH_MIN_M) return;
+      let tol = P_SIMPLIFY_M, simp, enc;
+      for (let i = 0; i < 12; i++) {
+        simp = simplify(mmPts, tol);
+        enc = encodePath(simp);
+        if (simp.length <= P_MAX_PTS && enc.length <= 5000) break;
+        tol += 1.5;
+      }
+      pFinal = { id: 'p' + Date.now(), enc: enc, len: Math.round(pathLen(simp)), pts: simp.length };
+      pendUpsert({ id: pFinal.id, enc: enc, len: pFinal.len, pts: pFinal.pts, from: $('pFrom').value, to: $('pTo').value });
+      $('pResult').innerHTML = '<div class="result good"><span class="coord">' + pFinal.len + 'm · 점 ' + simp.length + '개</span>' +
+        '지도에서 점을 찍어 만든 경로예요. 아래에서 저장해 주세요.</div>';
+      $('cardPathSave').classList.remove('hide');
+      mmClose();
+    }
+  });
+  $('btnPickMap').addEventListener('click', mmOpenPoint);
+  $('btnPickMapPath').addEventListener('click', mmOpenPath);
 
   renderPending();
   loadInfo();
