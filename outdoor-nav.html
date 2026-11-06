@@ -479,7 +479,7 @@
   function drawAllPaths() {
     pathLinesLayer.clearLayers();
     edges.forEach(function(e) {
-      L.polyline(e.pts.map(function(p){ return [p[0], p[1]]; }), { color: '#b5e8c4', weight: 4, opacity: 0.55 }).addTo(pathLinesLayer);
+      L.polyline(e.pts.map(function(p){ return [p[0], p[1]]; }), { color: '#2e7d32', weight: 4, opacity: 0.85 }).addTo(pathLinesLayer);
     });
   }
 
