@@ -781,7 +781,7 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
   }
   // ---- 좌표 보정: 위성 지도에서 직접 클릭해 정문 좌표 지정 ----
   const CAMPUS_CENTER = [37.7716, 128.8716];
-  let coordMap = null, coordMarker = null, coordTargetCode = null;
+  let coordMap = null, coordMarker = null, coordTargetCode = null, coordRefLayer = null;
   function openCoordPicker(code, name) {
     coordTargetCode = code;
     document.getElementById('coordBoxTitle').textContent = '좌표 보정 — ' + name + ' (' + code + ', 정문)';
@@ -809,6 +809,22 @@ select optgroup { color: var(--t3) !important; font-weight: 700; font-style: nor
         coordMarker = L.marker(center, { draggable: true }).addTo(coordMap);
         document.getElementById('coordConfirmBtn').disabled = false;
       }
+      // 다른 건물들의 기존 실측 좌표를 옅은 색으로 참고용으로 표시(현재 보정 중인 건물은 제외)
+      if (coordRefLayer) { coordMap.removeLayer(coordRefLayer); coordRefLayer = null; }
+      coordRefLayer = L.layerGroup();
+      Object.keys(buildingCoordsDetail).forEach(function(c) {
+        if (c === code) return;
+        const types = buildingCoordsDetail[c] || {};
+        Object.keys(types).forEach(function(ty) {
+          const gg = types[ty];
+          if (!gg || !gg.used || gg.lat == null) return;
+          const t = buildingTargets.find(function(x) { return x.code === c; });
+          L.circleMarker([gg.lat, gg.lng], {
+            radius: 6, color: '#ffffff', weight: 1.5, fillColor: '#ffd54f', fillOpacity: 0.55, opacity: 0.6
+          }).bindTooltip(c + (t && t.name ? ' ' + t.name : '') + ' · ' + ty + ' (실측 ' + gg.count + '건)').addTo(coordRefLayer);
+        });
+      });
+      coordRefLayer.addTo(coordMap);
       coordMap.invalidateSize();
     }, 30);
   }

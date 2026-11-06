@@ -287,6 +287,8 @@
 
   // ---------- 건물 목록 ----------
   let buildings = [];
+  let existingCoords = {};   // 지도에서 참고용으로 보여줄 기존 실측 좌표 { code: { 정문: {lat,lng,used}, ... } }
+  let existingPathLines = []; // 기존에 걸어서 기록된 길들 [[ [lat,lng], ... ], ...]
   let pathCount = 0;
   let serverHasPath = true;   // 서버(GAS)가 길 기록을 지원하는 새 버전인지
   function isGate(code) { const b = buildings.find(x => x.code === code); return !!(b && b.gate); }
@@ -347,6 +349,8 @@
     api({ op: 'info' }).then(res => {
       if (!res || !res.success) { topMsg('err', (res && res.message) || '불러오지 못했습니다.'); el.bld.innerHTML = '<option value="">불러오기 실패</option>'; return; }
       buildings = (res.buildings || []).map(b => { if (!b.name && b.gateName) b.name = b.gateName; return b; });   // 조사대상 시트에 이름이 있으면 그걸 우선 쓰고, 없을 때만 설명으로 대체
+      existingCoords = res.coords || {};
+      existingPathLines = res.pathLines || [];
       if (res.maxAcc) maxAcc = res.maxAcc;
       if (res.minSamples) minSamples = res.minSamples;
       surveyor = res.surveyor || '';
@@ -829,7 +833,26 @@
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       maxZoom: 20, attribution: 'Esri, Maxar, Earthstar Geographics'
     }).addTo(mmMap);
+    mmAddReferenceLayer();
     mmMap.on('click', function (e) { mmOnClick(e.latlng); });
+  }
+  // 이미 모인 실측 자료(건물 좌표·걸은 길)를 옅은 색으로 깔아 둬서, 새로 점을 찍을 때 참고할 수 있게 함
+  function mmAddReferenceLayer() {
+    const nameOf = code => { const b = buildings.find(x => x.code === code); return b && b.name ? (code + ' ' + b.name) : code; };
+    existingPathLines.forEach(function (line) {
+      if (!line || line.length < 2) return;
+      L.polyline(line, { color: '#ffffff', weight: 3, opacity: 0.35, dashArray: '1 6' }).addTo(mmMap);
+    });
+    Object.keys(existingCoords).forEach(function (code) {
+      const types = existingCoords[code] || {};
+      Object.keys(types).forEach(function (ty) {
+        const g = types[ty];
+        if (!g || !g.used || g.lat == null) return;
+        L.circleMarker([g.lat, g.lng], {
+          radius: 6, color: '#ffffff', weight: 1.5, fillColor: '#ffd54f', fillOpacity: 0.55, opacity: 0.6
+        }).bindTooltip(nameOf(code) + ' · ' + ty + ' (실측 ' + g.count + '건)').addTo(mmMap);
+      });
+    });
   }
   function mmClearDots() { mmDots.forEach(d => mmMap.removeLayer(d)); mmDots = []; }
   function mmRedrawPath() {
